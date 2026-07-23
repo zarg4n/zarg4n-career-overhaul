@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 — 23 July 2026
+
+- Made a fresh Manager Career mandatory and rejected legacy runtime state.
+- Added strict save UID isolation and fail-closed event handling.
+- Added durable write-ahead transaction checkpoints and idempotent recovery.
+- Extended controlled development through age 29 with a 27–28 prime window.
+- Expanded PlayStyle candidate logic to fifteen mapped FC 26 styles.
+- Added deterministic personality, bounded memory and bilingual narrative foundations.
+- Added read-only transfer event observation without negotiation or gameplay writes.
+- Preserved source/runtime parity and expanded behavioural, safety and package tests.
+
 ## 0.1.0-alpha — 23 July 2026
 
 - Built a clean TU1.6.4 FIFA Editing Toolsuite project with one isolated career asset.

@@ -19,16 +19,16 @@ local function empty_state(save_uid)
     return Migrations.NewState(save_uid)
 end
 
-local function upgrade_state(state, save_uid)
-    local ok, upgraded, migration_error = pcall(
-        Migrations.Upgrade,
+local function validate_state(state, save_uid)
+    local ok, validated, validation_error = pcall(
+        Migrations.ValidateCurrent,
         state,
         save_uid
     )
     if not ok then
-        return nil, "state migration failed"
+        return nil, "state validation failed"
     end
-    return upgraded, migration_error
+    return validated, validation_error
 end
 
 local function decode_state(path, save_uid)
@@ -68,23 +68,23 @@ function StateStore:Load(save_uid)
     local backup_exists = file_exists(path .. ".bak")
     local state = decode_state(path, save_uid)
     if state ~= nil then
-        local upgraded, migration_error = upgrade_state(state, save_uid)
-        if upgraded ~= nil then
-            return upgraded, nil
+        local validated, validation_error = validate_state(state, save_uid)
+        if validated ~= nil then
+            return validated, nil
         end
         self.logger:Warn("Primary career state failed validation: "
-            .. tostring(migration_error))
+            .. tostring(validation_error))
     end
 
     local backup = decode_state(path .. ".bak", save_uid)
     if backup ~= nil then
-        local upgraded, migration_error = upgrade_state(backup, save_uid)
-        if upgraded ~= nil then
+        local validated, validation_error = validate_state(backup, save_uid)
+        if validated ~= nil then
             self.logger:Warn("Recovered career state from backup")
-            return upgraded, nil
+            return validated, nil
         end
         self.logger:Warn("Backup career state failed validation: "
-            .. tostring(migration_error))
+            .. tostring(validation_error))
     end
 
     if primary_exists or backup_exists then

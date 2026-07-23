@@ -39,6 +39,20 @@ assert(type(created_profile.plus_playstyles) == "table", "profile must track Pla
 assert(created_profile.identity_revealed == false, "new prospect identity must start hidden")
 assert(created_profile.archetype_phase == "prospect", "young players must begin in the prospect phase")
 assert(type(created_profile.candidate_affinities) == "table", "profiles must persist candidate affinities")
+assert(type(created_profile.personality) == "table", "profiles must carry personality metadata")
+local duplicate_profile = Profile.Create({
+    playerid = 101,
+    position_name = "ST",
+    age = 17,
+    overallrating = 65,
+    potential = 82,
+    height = 180,
+    weight = 72,
+}, "save-1")
+assert(
+    created_profile.personality.ambition == duplicate_profile.personality.ambition,
+    "profile personality must be deterministic per player and career"
+)
 Profile.AdvanceSeason(created_profile)
 assert(created_profile.identity_revealed == true, "prospect identity must reveal after one observed season")
 
@@ -203,7 +217,7 @@ local pre_commit_affinities = evolving_winger.candidate_affinities
 local pre_commit_history = evolving_winger.archetype_history
 PlayStyles.ApplyEvolution(evolving_winger, young_evolution)
 assert(next(pre_commit_affinities) == nil and #pre_commit_history == 0,
-    "evolution commit must replace profile collections so state rollback can restore old references")
+    "evolution commit must replace profile collections so failed WAL commits can restore memory")
 assert(evolving_winger.archetype_phase == "emerging", "young senior players must enter the emerging phase")
 assert(evolving_winger.role_archetype == "explosive_winger",
     "a fast young winger must retain an explosive winger identity")

@@ -19,7 +19,11 @@ end
 package.preload["zarg4n_development"] = function()
     return {
         Calculate = function()
-            return { performance_score = 0.5, potential = 80 }
+            return {
+                performance_score = 0.5,
+                projected_potential = 81,
+                development_multiplier = 1.05,
+            }
         end,
         Apply = function() return true end,
     }
@@ -42,23 +46,47 @@ package.preload["zarg4n_playstyles"] = function()
                 archetype_history = { "efficient_forward" },
             }
         end,
-        ResolveAward = function() return { regular = "POWER_SHOT" } end,
+        ResolveAward = function()
+            return { regular = "POWER_SHOT", id = 2, level = "regular" }
+        end,
         ApplyEvolution = function(profile, evolution)
             profile.archetype_phase = evolution.archetype_phase
             profile.role_archetype = evolution.role_archetype
-            profile.candidate_affinities.finishing = evolution.candidate_affinities.finishing
-            table.insert(profile.archetype_history, evolution.archetype_history[1])
+            profile.candidate_affinities = evolution.candidate_affinities
+            profile.archetype_history = evolution.archetype_history
         end,
     }
 end
+
+local player_fields
+local apply_count = 0
 package.preload["zarg4n_player_writer"] = function()
     return {
-        Apply = function() end,
-        Matches = function() return true end,
+        Apply = function(_, _, _, profile, development)
+            apply_count = apply_count + 1
+            player_fields.potential = development.projected_potential
+            table.insert(profile.regular_playstyles, "POWER_SHOT")
+        end,
+        Matches = function(_, _, _, _, development)
+            return player_fields.potential == development.projected_potential
+        end,
     }
 end
 package.preload["zarg4n_logger"] = function()
-    return { Error = function() end }
+    return { Info = function() end, Warn = function() end, Error = function() end }
+end
+package.preload["zarg4n_save_guard"] = function()
+    return {
+        CanWrite = function() return true end,
+        MarkFreshCareer = function(state) return state end,
+    }
+end
+package.preload["zarg4n_transfer_observer"] = function()
+    return {
+        New = function() return {} end,
+        IsObservedEvent = function() return false end,
+        Observe = function() return nil end,
+    }
 end
 package.preload["zarg4n_config"] = function()
     return { max_profile_age = 35 }
@@ -74,35 +102,37 @@ package.preload["zarg4n_player_profile"] = function()
     }
 end
 
-local player_fields = {
-    playerid = 101,
-    preferredposition1 = 25,
-    birthdate = 1,
-    overallrating = 75,
-    potential = 80,
-    strength = 70,
-    jumping = 68,
-    shotpower = 76,
-    longshots = 74,
-    stamina = 72,
-    acceleration = 78,
-    sprintspeed = 80,
-    interceptions = 30,
-    finishing = 82,
-    positioning = 80,
-    reactions = 78,
-    ballcontrol = 79,
-    dribbling = 77,
-    vision = 70,
-    shortpassing = 72,
-    longpassing = 65,
-    standingtackle = 25,
-    defensiveawareness = 28,
-    height = 180,
-    weight = 75,
-    trait1 = 0,
-    icontrait1 = 0,
-}
+local function new_player_fields()
+    return {
+        playerid = 101,
+        preferredposition1 = 25,
+        birthdate = 1,
+        overallrating = 75,
+        potential = 80,
+        strength = 70,
+        jumping = 68,
+        shotpower = 76,
+        longshots = 74,
+        stamina = 72,
+        acceleration = 78,
+        sprintspeed = 80,
+        interceptions = 30,
+        finishing = 82,
+        positioning = 80,
+        reactions = 78,
+        ballcontrol = 79,
+        dribbling = 77,
+        vision = 70,
+        shortpassing = 72,
+        longpassing = 65,
+        standingtackle = 25,
+        defensiveawareness = 28,
+        height = 180,
+        weight = 75,
+        trait1 = 0,
+        icontrait1 = 0,
+    }
+end
 
 local players_table = {}
 function players_table:GetFirstRecord() return 1 end
@@ -116,78 +146,80 @@ GetPlayerPrimaryPositionName = function() return "ST" end
 CalculatePlayerAge = function() return 24 end
 GetPlayerStats = function() return {} end
 
-local old = {
-    last_development = { score = 1 },
-    playstyle_candidates = { "BRUISER" },
-    last_playstyle_award = { regular = "BRUISER" },
-    last_stats = { appearances = 10 },
-    physical_projection = { strength_total = 2 },
-    last_processed_date = 20250723,
-    archetype_phase = "emerging",
-    role_archetype = "explosive_winger",
-    candidate_affinities = { finishing = 3 },
-    archetype_history = { "explosive_winger" },
-    strength_growth_total = 2,
-    jumping_growth_total = 3,
-    pending_transaction = nil,
-    committed_transaction = { date = 20250723 },
-    seasons_observed = 1,
-    identity_revealed = false,
-}
+local function new_profile()
+    return {
+        last_development = { score = 1 },
+        playstyle_candidates = { "BRUISER" },
+        last_playstyle_award = { regular = "BRUISER" },
+        last_stats = { appearances = 10 },
+        physical_projection = { strength_total = 2 },
+        last_processed_date = 20250723,
+        archetype_phase = "emerging",
+        role_archetype = "explosive_winger",
+        candidate_affinities = { finishing = 3 },
+        archetype_history = { "explosive_winger" },
+        strength_growth_total = 2,
+        jumping_growth_total = 3,
+        regular_playstyles = {},
+        plus_playstyles = {},
+        pending_transaction = nil,
+        committed_transaction = nil,
+        seasons_observed = 1,
+        identity_revealed = false,
+    }
+end
 
-local profile = {}
-for key, value in pairs(old) do profile[key] = value end
-
-local save_calls = 0
-local runtime = {
-    state = {
-        save_uid = "transaction-test",
-        players = { ["101"] = profile },
-        last_processed_date = 0,
-    },
-    state_store = {
-        Save = function()
-            save_calls = save_calls + 1
-            if save_calls == 2 then
-                return false, "injected commit failure"
-            end
-            return true
-        end,
-    },
-    player_development_manager = { Save = function() end },
-}
+local function new_runtime(profile, save_result)
+    return {
+        state = {
+            save_uid = "transaction-test",
+            players = { ["101"] = profile },
+            last_processed_date = 0,
+        },
+        state_store = { Save = save_result },
+        player_development_manager = { Save = function() end },
+    }
+end
 
 local Events = require "zarg4n_events"
-Events.new(runtime):ProcessSeasonEnd()
 
-local function assert_equal(actual, expected, label)
-    if actual ~= expected then
-        error(label .. ": expected " .. tostring(expected) .. ", got " .. tostring(actual))
+player_fields = new_player_fields()
+local prepare_profile = new_profile()
+local prepare_runtime = new_runtime(prepare_profile, function()
+    return false, "injected prepare failure"
+end)
+Events.new(prepare_runtime):ProcessSeasonEnd()
+assert(player_fields.potential == 80, "failed WAL prepare must prevent DB mutation")
+assert(apply_count == 0, "failed WAL prepare must not call player writer")
+assert(prepare_profile.pending_transaction == nil, "failed prepare must clear in-memory pending transaction")
+
+player_fields = new_player_fields()
+local profile = new_profile()
+local save_calls = 0
+local fail_commit = true
+local runtime = new_runtime(profile, function()
+    save_calls = save_calls + 1
+    if fail_commit and save_calls == 2 then
+        return false, "injected commit failure"
     end
-end
+    return true
+end)
+local events = Events.new(runtime)
+events:ProcessSeasonEnd()
 
-assert_equal(profile.last_development.score, 1, "last development")
-assert_equal(profile.playstyle_candidates[1], "BRUISER", "playstyle candidates")
-assert_equal(profile.last_playstyle_award.regular, "BRUISER", "last award")
-assert_equal(profile.last_stats.appearances, 10, "last stats")
-assert_equal(profile.physical_projection.strength_total, 2, "physical projection")
-assert_equal(profile.last_processed_date, 20250723, "processed date")
-assert_equal(profile.archetype_phase, "emerging", "archetype phase")
-assert_equal(profile.role_archetype, "explosive_winger", "role archetype")
-assert_equal(profile.candidate_affinities.finishing, 3, "candidate affinities")
-assert_equal(#profile.archetype_history, 1, "archetype history length")
-assert_equal(profile.archetype_history[1], "explosive_winger", "archetype history")
-assert_equal(profile.strength_growth_total, 2, "strength total")
-assert_equal(profile.jumping_growth_total, 3, "jumping total")
-assert_equal(profile.pending_transaction.date, 20260723, "pending transaction")
-assert_equal(profile.committed_transaction.date, 20250723, "committed transaction")
-assert_equal(profile.seasons_observed, 1, "seasons observed")
-assert_equal(profile.identity_revealed, false, "identity reveal")
-assert_equal(runtime.state.last_processed_date, 0, "season checkpoint")
+assert(player_fields.potential == 81, "DB target may remain after durable WAL and commit failure")
+assert(apply_count == 1, "first attempt applies DB target once")
+assert(profile.pending_transaction ~= nil, "commit failure must retain durable pending transaction")
+assert(profile.last_processed_date == 20250723, "commit failure must not advance profile checkpoint")
+assert(#profile.regular_playstyles == 0, "writer profile side effect must be restored in memory")
+assert(runtime.state.last_processed_date == 0, "commit failure must not advance season checkpoint")
 
-if profile.candidate_affinities == old.candidate_affinities
-    or profile.archetype_history == old.archetype_history then
-    error("rollback restored shallow aliases instead of independent snapshots")
-end
+fail_commit = false
+events:ProcessSeasonEnd()
+assert(apply_count == 1, "retry must detect matching DB target and avoid a duplicate write")
+assert(profile.pending_transaction == nil, "successful retry must clear pending transaction")
+assert(profile.last_processed_date == 20260723, "successful retry must commit player checkpoint")
+assert(profile.last_development.projected_potential == 81, "retry must commit prepared result")
+assert(runtime.state.last_processed_date == 20260723, "successful retry must commit season checkpoint")
 
-print("PASS: event transaction rollback restores the complete profile snapshot.")
+print("PASS: durable player transaction WAL is fail-closed and idempotent.")

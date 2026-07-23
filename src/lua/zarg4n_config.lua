@@ -1,5 +1,6 @@
 return {
     author = "zarg4n",
+    version = "0.2.0",
     target_title_update = "TU1.6.4",
     state_file_prefix = "zarg4n_career_",
     min_supported_age = 14,

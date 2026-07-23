@@ -48,14 +48,26 @@ if ($source -notmatch 'schema_version\s*=\s*2') {
 if ($source -notmatch 'database_writes') {
     throw 'Fail-closed database write feature flag is missing.'
 }
-if ($source -notmatch 'migration_journal') {
-    throw 'Migration journal is missing.'
-}
-if ($source -notmatch 'rollback_metadata') {
-    throw 'Rollback metadata is missing.'
-}
 if ($source -notmatch 'IsValidSaveUid') {
     throw 'Conservative save UID validation is missing.'
+}
+if ($source -notmatch 'state_origin\s*=\s*FRESH_STATE_ORIGIN') {
+    throw 'Fresh-career state origin is missing.'
+}
+if ($source -notmatch 'awaiting_initial_user_added\s*=\s*true') {
+    throw 'Fresh-career one-shot activation lifecycle is missing.'
+}
+if ($source -notmatch 'function Migrations\.ValidateCurrent') {
+    throw 'Current-schema validation is missing.'
+}
+if ($source -match 'function Migrations\.Upgrade') {
+    throw 'Legacy state migration must not be supported.'
+}
+if ($source -match 'user_opt_in') {
+    throw 'General user opt-in must not enable legacy careers.'
+}
+if ($source -notmatch 'event_marker\s*~=\s*INITIAL_USER_MARKER') {
+    throw 'Activation must require the exact initial-user event marker.'
 }
 
 Write-Output 'PASS: save guard source contract.'

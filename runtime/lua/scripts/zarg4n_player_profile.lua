@@ -1,5 +1,6 @@
 local Profile = {}
 local Positions = require "zarg4n_positions"
+local Personality = require "zarg4n_personality"
 
 local function clamp(value)
     return math.max(0, math.min(100, math.floor(value + 0.5)))
@@ -71,8 +72,13 @@ function Profile.Create(player_row, save_uid)
         baseline_overall = current_ovr,
         regular_playstyles = {},
         plus_playstyles = {},
+        archetype_phase = (tonumber(player_row.age) or 18) <= 18 and "prospect" or "emerging",
+        role_archetype = "unresolved",
+        candidate_affinities = {},
+        archetype_history = {},
         seasons_observed = 0,
         identity_revealed = false,
+        personality = Personality.Create(player_id, save_uid),
     }
 end
 

@@ -8,10 +8,103 @@ local PlayStyles = require "zarg4n_playstyles"
 local PlayerWriter = require "zarg4n_player_writer"
 local Logger = require "zarg4n_logger"
 local Config = require "zarg4n_config"
+local SaveGuard = require "zarg4n_save_guard"
+local TransferObserver = require "zarg4n_transfer_observer"
 local Date = require "imports/core/date"
 
 local Events = {}
 Events.__index = Events
+
+local function deep_copy(value, copies)
+    if type(value) ~= "table" then
+        return value
+    end
+
+    copies = copies or {}
+    if copies[value] ~= nil then
+        return copies[value]
+    end
+
+    local copy = {}
+    copies[value] = copy
+    for key, item in pairs(value) do
+        copy[deep_copy(key, copies)] = deep_copy(item, copies)
+    end
+    return setmetatable(copy, getmetatable(value))
+end
+
+local function snapshot_profile(profile)
+    return {
+        last_development = deep_copy(profile.last_development),
+        playstyle_candidates = deep_copy(profile.playstyle_candidates),
+        last_playstyle_award = deep_copy(profile.last_playstyle_award),
+        last_stats = deep_copy(profile.last_stats),
+        physical_projection = deep_copy(profile.physical_projection),
+        last_processed_date = deep_copy(profile.last_processed_date),
+        archetype_phase = deep_copy(profile.archetype_phase),
+        role_archetype = deep_copy(profile.role_archetype),
+        candidate_affinities = deep_copy(profile.candidate_affinities),
+        archetype_history = deep_copy(profile.archetype_history),
+        strength_growth_total = deep_copy(profile.strength_growth_total),
+        jumping_growth_total = deep_copy(profile.jumping_growth_total),
+        pending_transaction = deep_copy(profile.pending_transaction),
+        committed_transaction = deep_copy(profile.committed_transaction),
+        seasons_observed = deep_copy(profile.seasons_observed),
+        identity_revealed = deep_copy(profile.identity_revealed),
+        regular_playstyles = deep_copy(profile.regular_playstyles),
+        plus_playstyles = deep_copy(profile.plus_playstyles),
+    }
+end
+
+local function restore_in_memory_profile(profile, snapshot)
+    profile.last_development = deep_copy(snapshot.last_development)
+    profile.playstyle_candidates = deep_copy(snapshot.playstyle_candidates)
+    profile.last_playstyle_award = deep_copy(snapshot.last_playstyle_award)
+    profile.last_stats = deep_copy(snapshot.last_stats)
+    profile.physical_projection = deep_copy(snapshot.physical_projection)
+    profile.last_processed_date = deep_copy(snapshot.last_processed_date)
+    profile.archetype_phase = deep_copy(snapshot.archetype_phase)
+    profile.role_archetype = deep_copy(snapshot.role_archetype)
+    profile.candidate_affinities = deep_copy(snapshot.candidate_affinities)
+    profile.archetype_history = deep_copy(snapshot.archetype_history)
+    profile.strength_growth_total = deep_copy(snapshot.strength_growth_total)
+    profile.jumping_growth_total = deep_copy(snapshot.jumping_growth_total)
+    profile.pending_transaction = deep_copy(snapshot.pending_transaction)
+    profile.committed_transaction = deep_copy(snapshot.committed_transaction)
+    profile.seasons_observed = deep_copy(snapshot.seasons_observed)
+    profile.identity_revealed = deep_copy(snapshot.identity_revealed)
+    profile.regular_playstyles = deep_copy(snapshot.regular_playstyles)
+    profile.plus_playstyles = deep_copy(snapshot.plus_playstyles)
+end
+
+local function append_unique(list, value)
+    for _, item in ipairs(list) do
+        if item == value then return end
+    end
+    table.insert(list, value)
+end
+
+local function commit_profile(profile, transaction, current_date)
+    PlayStyles.ApplyEvolution(profile, transaction.evolution)
+    profile.last_development = transaction.result
+    profile.playstyle_candidates = transaction.candidates
+    profile.last_playstyle_award = transaction.award
+    profile.last_stats = transaction.stats
+    profile.last_processed_date = current_date
+    profile.physical_projection = transaction.physical
+    profile.strength_growth_total = transaction.physical.strength_total
+    profile.jumping_growth_total = transaction.physical.jumping_total
+    if transaction.award ~= nil and transaction.award.id ~= nil then
+        if transaction.award.level == "plus" then
+            append_unique(profile.plus_playstyles, transaction.award.id)
+        else
+            append_unique(profile.regular_playstyles, transaction.award.id)
+        end
+    end
+    profile.committed_transaction = transaction
+    profile.pending_transaction = nil
+    Profile.AdvanceSeason(profile)
+end
 
 local function row_for_player(player_id)
     local table_ref = LE.db:GetTable("players")
@@ -36,7 +129,18 @@ local function row_for_player(player_id)
                 longshots = table_ref:GetRecordFieldValue(record, "longshots"),
                 stamina = table_ref:GetRecordFieldValue(record, "stamina"),
                 acceleration = table_ref:GetRecordFieldValue(record, "acceleration"),
+                sprintspeed = table_ref:GetRecordFieldValue(record, "sprintspeed"),
                 interceptions = table_ref:GetRecordFieldValue(record, "interceptions"),
+                finishing = table_ref:GetRecordFieldValue(record, "finishing"),
+                positioning = table_ref:GetRecordFieldValue(record, "positioning"),
+                reactions = table_ref:GetRecordFieldValue(record, "reactions"),
+                ballcontrol = table_ref:GetRecordFieldValue(record, "ballcontrol"),
+                dribbling = table_ref:GetRecordFieldValue(record, "dribbling"),
+                vision = table_ref:GetRecordFieldValue(record, "vision"),
+                shortpassing = table_ref:GetRecordFieldValue(record, "shortpassing"),
+                longpassing = table_ref:GetRecordFieldValue(record, "longpassing"),
+                standingtackle = table_ref:GetRecordFieldValue(record, "standingtackle"),
+                defensiveawareness = table_ref:GetRecordFieldValue(record, "defensiveawareness"),
                 height = table_ref:GetRecordFieldValue(record, "height"),
                 weight = table_ref:GetRecordFieldValue(record, "weight"),
                 trait1 = table_ref:GetRecordFieldValue(record, "trait1"),
@@ -49,10 +153,74 @@ local function row_for_player(player_id)
 end
 
 function Events.new(runtime)
-    return setmetatable({ runtime = runtime }, Events)
+    return setmetatable({
+        runtime = runtime,
+        transfer_observer = TransferObserver.New(),
+    }, Events)
+end
+
+function Events:CommitPreparedTransaction(
+    players_table,
+    row,
+    profile,
+    transaction,
+    player_id
+)
+    local profile_snapshot = snapshot_profile(profile)
+    local database_applied, database_error = pcall(function()
+        local target_matches = PlayerWriter.Matches(
+            players_table,
+            row.record,
+            row,
+            profile,
+            transaction.result,
+            transaction.physical,
+            transaction.award
+        )
+        if not target_matches then
+            PlayerWriter.Apply(
+                players_table,
+                row.record,
+                row,
+                profile,
+                transaction.result,
+                transaction.physical,
+                transaction.award
+            )
+        end
+        local applied, development_error = Development.Apply(
+            LE,
+            player_id,
+            transaction.result
+        )
+        if not applied then error(development_error) end
+        self.runtime.player_development_manager:Save()
+    end)
+
+    if not database_applied then
+        restore_in_memory_profile(profile, profile_snapshot)
+        Logger:Error("Prepared player transaction failed for "
+            .. tostring(player_id) .. ": " .. tostring(database_error))
+        return false
+    end
+
+    commit_profile(profile, transaction, transaction.date)
+    local committed, commit_error = self.runtime.state_store:Save(self.runtime.state)
+    if not committed then
+        restore_in_memory_profile(profile, profile_snapshot)
+        Logger:Error("Prepared player transaction remains pending for "
+            .. tostring(player_id) .. ": " .. tostring(commit_error))
+        return false
+    end
+    return true
 end
 
 function Events:InitializePlayers()
+    local can_write = SaveGuard.CanWrite(self.runtime.state)
+    if not can_write then
+        return
+    end
+
     local player_ids = GetUserSeniorTeamPlayerIDs()
     local players_table = LE.db:GetTable("players")
     local state_changed = false
@@ -65,43 +233,56 @@ function Events:InitializePlayers()
         if row ~= nil and row.age <= Config.max_profile_age and self.runtime.state.players[key] ~= nil then
             local profile = self.runtime.state.players[key]
             PlayStyles.HydrateProfile(profile, row)
-            local committed = profile.committed_transaction
-            if committed ~= nil then
-                if PlayerWriter.Matches(
+            local pending = profile.pending_transaction
+            if pending ~= nil then
+                if not self:CommitPreparedTransaction(
                     players_table,
-                    row.record,
                     row,
                     profile,
-                    committed.result,
-                    committed.physical,
-                    committed.award
+                    pending,
+                    player_id
                 ) then
-                    profile.committed_transaction = nil
-                    state_changed = true
-                else
-                    local reconciled, reconcile_error = pcall(function()
-                        PlayerWriter.Apply(
-                            players_table,
-                            row.record,
-                            row,
-                            profile,
-                            committed.result,
-                            committed.physical,
-                            committed.award
-                        )
-                        local applied, development_error = Development.Apply(
-                            LE,
-                            player_id,
-                            committed.result
-                        )
-                        if not applied then
-                            error(development_error)
+                    Logger:Warn("Pending player transaction will be retried")
+                end
+            else
+                local committed = profile.committed_transaction
+                if committed ~= nil then
+                    if PlayerWriter.Matches(
+                        players_table,
+                        row.record,
+                        row,
+                        profile,
+                        committed.result,
+                        committed.physical,
+                        committed.award
+                    ) then
+                        profile.committed_transaction = nil
+                        state_changed = true
+                    else
+                        local reconciled, reconcile_error = pcall(function()
+                            PlayerWriter.Apply(
+                                players_table,
+                                row.record,
+                                row,
+                                profile,
+                                committed.result,
+                                committed.physical,
+                                committed.award
+                            )
+                            local applied, development_error = Development.Apply(
+                                LE,
+                                player_id,
+                                committed.result
+                            )
+                            if not applied then
+                                error(development_error)
+                            end
+                            self.runtime.player_development_manager:Save()
+                        end)
+                        if not reconciled then
+                            Logger:Error("Career save reconciliation failed for "
+                                .. tostring(player_id) .. ": " .. tostring(reconcile_error))
                         end
-                        self.runtime.player_development_manager:Save()
-                    end)
-                    if not reconciled then
-                        Logger:Error("Career save reconciliation failed for "
-                            .. tostring(player_id) .. ": " .. tostring(reconcile_error))
                     end
                 end
             end
@@ -117,6 +298,12 @@ function Events:InitializePlayers()
 end
 
 function Events:ProcessSeasonEnd()
+    local can_write, guard_error = SaveGuard.CanWrite(self.runtime.state)
+    if not can_write then
+        Logger:Warn("Development skipped: " .. tostring(guard_error))
+        return
+    end
+
     local current_date = GetCurrentDate():ToInt()
     if self.runtime.state.last_processed_date == current_date then
         return
@@ -149,7 +336,7 @@ function Events:ProcessSeasonEnd()
             if transaction == nil or transaction.date ~= current_date then
                 local stats = Stats.Aggregate(player_id, GetPlayerStats(player_id))
                 local result = Development.Calculate(profile, stats, row)
-                local candidates = PlayStyles.BuildCandidates(profile, row, stats)
+                local candidates, evolution = PlayStyles.BuildCandidates(profile, row, stats)
                 local physical = PhysicalGrowth.Calculate(profile, row, {
                     age = row.age,
                     performance_score = result.performance_score,
@@ -163,6 +350,7 @@ function Events:ProcessSeasonEnd()
                     stats = stats,
                     result = result,
                     candidates = candidates,
+                    evolution = evolution,
                     physical = physical,
                     award = PlayStyles.ResolveAward(profile, row, stats, candidates),
                 }
@@ -178,61 +366,14 @@ function Events:ProcessSeasonEnd()
             end
 
             if transaction ~= nil then
-                local ok, error_message = pcall(function()
-                    PlayerWriter.Apply(
-                        players_table,
-                        row.record,
-                        row,
-                        profile,
-                        transaction.result,
-                        transaction.physical,
-                        transaction.award
-                    )
-                    local applied, development_error = Development.Apply(
-                        LE,
-                        player_id,
-                        transaction.result
-                    )
-                    if not applied then
-                        error(development_error)
-                    end
-                    self.runtime.player_development_manager:Save()
-                end)
-
-                if not ok then
-                    Logger:Error("Player transaction failed for "
-                        .. tostring(player_id) .. ": " .. tostring(error_message))
+                if not self:CommitPreparedTransaction(
+                    players_table,
+                    row,
+                    profile,
+                    transaction,
+                    player_id
+                ) then
                     all_successful = false
-                else
-                    local previous_seasons = profile.seasons_observed
-                    local previous_identity = profile.identity_revealed
-                    local previous_strength_total = profile.strength_growth_total
-                    local previous_jumping_total = profile.jumping_growth_total
-                    local previous_committed = profile.committed_transaction
-                    profile.last_development = transaction.result
-                    profile.playstyle_candidates = transaction.candidates
-                    profile.last_playstyle_award = transaction.award
-                    profile.last_stats = transaction.stats
-                    profile.last_processed_date = current_date
-                    profile.physical_projection = transaction.physical
-                    profile.strength_growth_total = transaction.physical.strength_total
-                    profile.jumping_growth_total = transaction.physical.jumping_total
-                    profile.committed_transaction = transaction
-                    profile.pending_transaction = nil
-                    Profile.AdvanceSeason(profile)
-                    local committed, commit_error = self.runtime.state_store:Save(self.runtime.state)
-                    if not committed then
-                        profile.last_processed_date = nil
-                        profile.pending_transaction = transaction
-                        profile.seasons_observed = previous_seasons
-                        profile.identity_revealed = previous_identity
-                        profile.strength_growth_total = previous_strength_total
-                        profile.jumping_growth_total = previous_jumping_total
-                        profile.committed_transaction = previous_committed
-                        Logger:Error("Player transaction commit failed for "
-                            .. tostring(player_id) .. ": " .. tostring(commit_error))
-                        all_successful = false
-                    end
                 end
             end
         end
@@ -251,11 +392,51 @@ function Events:ProcessSeasonEnd()
 end
 
 function Events:OnCareerEvent(_, event_id, _)
-    if event_id == ENUM_CM_EVENT_MSG_INITIAL_USER_ADDED
-        or event_id == ENUM_CM_EVENT_MSG_POST_LOAD_PREPARE then
+    if event_id == ENUM_CM_EVENT_MSG_INITIAL_USER_ADDED then
+        local previous_eligibility = deep_copy(self.runtime.state.eligibility)
+        local previous_flags = deep_copy(self.runtime.state.feature_flags)
+        local _, eligibility_error = SaveGuard.MarkFreshCareer(
+            self.runtime.state,
+            "initial_user_added",
+            GetCurrentDate():ToInt()
+        )
+        if eligibility_error ~= nil then
+            Logger:Error("New-career activation failed: " .. tostring(eligibility_error))
+            return
+        end
+        local saved, save_error = self.runtime.state_store:Save(self.runtime.state)
+        if not saved then
+            self.runtime.state.eligibility = previous_eligibility
+            self.runtime.state.feature_flags = previous_flags
+            Logger:Error("New-career activation checkpoint failed: " .. tostring(save_error))
+            return
+        end
         self:InitializePlayers()
+    elseif event_id == ENUM_CM_EVENT_MSG_POST_LOAD_PREPARE then
+        local can_write = SaveGuard.CanWrite(self.runtime.state)
+        if can_write then
+            self:InitializePlayers()
+        end
     elseif event_id == ENUM_CM_EVENT_MSG_END_OF_SEASON_REACHED then
         self:ProcessSeasonEnd()
+    end
+
+    local observed = nil
+    if TransferObserver.IsObservedEvent(event_id) then
+        observed = TransferObserver.Observe(
+            self.transfer_observer,
+            event_id,
+            nil,
+            GetCurrentDate():ToInt()
+        )
+    end
+    if observed ~= nil then
+        Logger:Info(
+            "transfer_event"
+                .. " event_id=" .. tostring(observed.event_id)
+                .. " kind=" .. tostring(observed.kind)
+                .. " boundary=" .. tostring(observed.boundary)
+        )
     end
 end
 

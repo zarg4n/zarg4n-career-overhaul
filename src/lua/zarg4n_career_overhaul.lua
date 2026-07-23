@@ -16,6 +16,8 @@ local Config = require "zarg4n_config"
 local Logger = require "zarg4n_logger"
 local StateStore = require "zarg4n_state_store"
 local Events = require "zarg4n_events"
+local SaveGuard = require "zarg4n_save_guard"
+local Migrations = require "zarg4n_migrations"
 
 local runtime = {
     author = Config.author,
@@ -25,26 +27,46 @@ local runtime = {
     player_development_manager = nil,
 }
 
+local function clear_active_save()
+    runtime.state = nil
+    runtime.events = nil
+    runtime.player_development_manager = nil
+end
+
+local function safe_error(message)
+    pcall(function()
+        Logger:Error(tostring(message))
+    end)
+end
+
 local function load_save(save_uid)
     runtime.state_store = runtime.state_store or StateStore.new(Logger)
     local state, error_message = runtime.state_store:Load(save_uid)
     if state == nil then
-        Logger:Error("State load failed: " .. tostring(error_message))
+        clear_active_save()
+        safe_error("State load failed: " .. tostring(error_message))
         return false
     end
 
-    state.save_uid = save_uid
-    runtime.state = state
-    runtime.player_development_manager = LE.player_development_manager
+    local player_development_manager = LE.player_development_manager
     local manager_loaded, manager_error = pcall(function()
-        runtime.player_development_manager:Load()
+        player_development_manager:Load()
     end)
     if not manager_loaded then
         Logger:Warn("Development manager load failed: " .. tostring(manager_error))
     end
+    runtime.state = state
+    runtime.player_development_manager = player_development_manager
     runtime.events = Events.new(runtime)
-    runtime.events:InitializePlayers()
-    Logger:Info("Loaded " .. Config.author .. " runtime for " .. Config.target_title_update)
+    local can_write = SaveGuard.CanWrite(runtime.state)
+    if can_write then
+        runtime.events:InitializePlayers()
+    end
+    Logger:Info(
+        "Loaded " .. Config.author
+            .. " runtime v" .. Config.version
+            .. " for " .. Config.target_title_update
+    )
     return true
 end
 
@@ -55,34 +77,51 @@ local function bootstrap()
     end
 
     local save_uid = GetSaveUID()
-    if save_uid == nil or save_uid == "" then
-        Logger:Error("No save UID; runtime disabled")
+    if not Migrations.IsValidSaveUid(save_uid) then
+        clear_active_save()
+        safe_error("Invalid save UID; runtime disabled")
         return
     end
 
     load_save(save_uid)
 end
 
-function Zarg4nCareerOnEvent(_, event_id, event)
+local function on_career_event(_, event_id, event)
     if runtime.events == nil then
         bootstrap()
     end
     if runtime.events ~= nil and IsInCM() then
         local save_uid = GetSaveUID()
-        if save_uid ~= nil and save_uid ~= ""
-            and runtime.state ~= nil
-            and runtime.state.save_uid ~= save_uid then
+        if not Migrations.IsValidSaveUid(save_uid) then
+            clear_active_save()
+            safe_error("Career event ignored because save UID is invalid")
+            return
+        end
+        if runtime.state == nil or runtime.state.save_uid ~= save_uid then
             if not load_save(save_uid) then
                 return
             end
         end
         runtime.events:OnCareerEvent(_, event_id, event)
-        if runtime.state_store ~= nil and runtime.state ~= nil then
+        local can_write = runtime.state ~= nil and SaveGuard.CanWrite(runtime.state)
+        if can_write and runtime.state_store ~= nil then
             local ok, error_message = runtime.state_store:Save(runtime.state)
             if not ok then
                 Logger:Error("State save failed: " .. tostring(error_message))
             end
         end
+    end
+end
+
+function Zarg4nCareerOnEvent(...)
+    local arguments = { ... }
+    local ok, error_message = xpcall(function()
+        on_career_event(table.unpack(arguments))
+    end, function(runtime_error)
+        return debug.traceback(tostring(runtime_error), 2)
+    end)
+    if not ok then
+        safe_error("Career event failed safely: " .. tostring(error_message))
     end
 end
 

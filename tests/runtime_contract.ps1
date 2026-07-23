@@ -6,6 +6,7 @@ $events = Get-Content -Raw (Join-Path $luaRoot "zarg4n_events.lua")
 $stats = Get-Content -Raw (Join-Path $luaRoot "zarg4n_stats.lua")
 $stateStore = Get-Content -Raw (Join-Path $luaRoot "zarg4n_state_store.lua")
 $entrypoint = Get-Content -Raw (Join-Path $luaRoot "zarg4n_career_overhaul.lua")
+$profile = Get-Content -Raw (Join-Path $luaRoot "zarg4n_player_profile.lua")
 
 if ($events -match 'local Enums\s*=\s*require') {
     throw "Career enums module exports globals; assigning require result is unsupported."
@@ -21,6 +22,26 @@ if ($stats -match 'row\.avg.*appearances') {
 
 if ($events -notmatch 'PlayerWriter\.Apply') {
     throw "Calculated potential, physical growth and PlayStyles are not written to the career database."
+}
+
+if ($events -notmatch 'SaveGuard\.CanWrite') {
+    throw "Season processing must be protected by the schema-v2 save guard."
+}
+
+if ($events -notmatch 'SaveGuard\.MarkFreshCareer') {
+    throw "Only the initial-user event may enable development writes for a new career."
+}
+
+if ($events -notmatch 'TransferObserver\.Observe') {
+    throw "Documented transfer events must be observed through the read-only observer."
+}
+
+if ($events -match 'MessageBox') {
+    throw "Transfer observation must not open game UI."
+}
+
+if ($profile -notmatch 'Personality\.Create') {
+    throw "Player profiles must carry deterministic personality metadata."
 }
 
 $candidateFields = @(
@@ -60,7 +81,7 @@ if ($events -notmatch 'committed_transaction' -or $events -notmatch 'PlayerWrite
     throw "Completed targets must be reconciled against the EA career save after reload."
 }
 
-$rollbackFields = @(
+$snapshotFields = @(
     "last_development",
     "playstyle_candidates",
     "last_playstyle_award",
@@ -76,34 +97,44 @@ $rollbackFields = @(
     "pending_transaction",
     "committed_transaction",
     "seasons_observed",
-    "identity_revealed"
+    "identity_revealed",
+    "regular_playstyles",
+    "plus_playstyles"
 )
 
-$hasRollbackHelpers = (
+$hasWalHelpers = (
     $events -match 'local function snapshot_profile\s*\(' -and
-    $events -match 'local function restore_profile\s*\(' -and
+    $events -match 'local function restore_in_memory_profile\s*\(' -and
     $events -match 'local function deep_copy\s*\('
 )
-if (-not $hasRollbackHelpers) {
-    throw "Player transaction rollback must use explicit deep snapshot and restore helpers."
+if (-not $hasWalHelpers) {
+    throw "Prepared transactions must restore in-memory profile state after a failed attempt."
 }
 
-foreach ($field in $rollbackFields) {
+foreach ($field in $snapshotFields) {
     $escapedField = [regex]::Escape($field)
     if ($events -notmatch "$escapedField\s*=\s*deep_copy\(profile\.$escapedField\)") {
         throw "Player transaction snapshot does not deep-copy profile field: $field"
     }
     if ($events -notmatch "profile\.$escapedField\s*=\s*deep_copy\(snapshot\.$escapedField\)") {
-        throw "Player transaction rollback does not restore profile field: $field"
+        throw "Player transaction failure does not restore in-memory profile field: $field"
     }
 }
 
 if ($events -notmatch 'local profile_snapshot\s*=\s*snapshot_profile\(profile\)') {
-    throw "Player transaction must capture its complete profile snapshot before commit mutations."
+    throw "Player transaction must capture its profile before database mutations."
 }
 
-if ($events -notmatch 'restore_profile\(profile,\s*profile_snapshot\)') {
-    throw "State commit failure must restore the complete pre-transaction profile snapshot."
+if ($events -notmatch 'restore_in_memory_profile\(profile,\s*profile_snapshot\)') {
+    throw "Failed prepared transactions must restore in-memory profile state."
+}
+
+if ($events -notmatch 'PlayerWriter\.Matches[\s\S]*if not target_matches then[\s\S]*PlayerWriter\.Apply') {
+    throw "Prepared transaction retries must avoid duplicate database writes."
+}
+
+if ($events -notmatch 'pending_transaction\s*=\s*transaction[\s\S]*state_store:Save[\s\S]*CommitPreparedTransaction') {
+    throw "A durable pending transaction must be saved before database mutation."
 }
 
 if ($events -notmatch 'Config\.max_profile_age') {
@@ -124,6 +155,14 @@ if ($entrypoint -notmatch 'package\.path') {
 
 if ($entrypoint -notmatch 'GetSaveUID' -or $entrypoint -notmatch 'runtime\.state\.save_uid\s*~=\s*save_uid') {
     throw "Runtime must reload state when the active career save changes."
+}
+
+if ($entrypoint -notmatch 'Migrations\.IsValidSaveUid' -or $entrypoint -notmatch 'clear_active_save') {
+    throw "Blank or invalid save UIDs must clear active runtime state and fail closed."
+}
+
+if ($entrypoint -notmatch 'xpcall' -or $entrypoint -notmatch 'safe_error') {
+    throw "Global career event callback must have a protected logging boundary."
 }
 
 if ($entrypoint -notmatch 'ZARG4N_CAREER_RUNTIME_LOADED') {

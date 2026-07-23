@@ -14,7 +14,13 @@ $required = @(
     "zarg4n_playstyles.lua",
     "zarg4n_player_writer.lua",
     "zarg4n_events.lua",
-    "zarg4n_positions.lua"
+    "zarg4n_positions.lua",
+    "zarg4n_migrations.lua",
+    "zarg4n_save_guard.lua",
+    "zarg4n_personality.lua",
+    "zarg4n_memory.lua",
+    "zarg4n_dialogue.lua",
+    "zarg4n_transfer_observer.lua"
 )
 
 foreach ($file in $required) {

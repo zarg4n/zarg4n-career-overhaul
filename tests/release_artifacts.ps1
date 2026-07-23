@@ -4,9 +4,9 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $root = Split-Path -Parent $PSScriptRoot
 $release = Join-Path $root "release"
 $project = Join-Path $root "zarg4n Career Overhaul.fifaproject"
-$mod = Join-Path $release "zarg4n Career Overhaul 0.1.0-alpha.fifamod"
-$runtimeZip = Join-Path $release "zarg4n Career Overhaul 0.1.0-alpha - Live Editor Runtime.zip"
-$completeZip = Join-Path $release "zarg4n Career Overhaul 0.1.0-alpha - Complete.zip"
+$mod = Join-Path $release "zarg4n Career Overhaul 0.2.0.fifamod"
+$runtimeZip = Join-Path $release "zarg4n Career Overhaul 0.2.0 - Live Editor Runtime.zip"
+$completeZip = Join-Path $release "zarg4n Career Overhaul 0.2.0 - Complete.zip"
 
 foreach ($path in @($project, $mod, $runtimeZip, $completeZip)) {
     if (-not (Test-Path -LiteralPath $path)) { throw "Missing release artifact: $path" }
@@ -23,7 +23,11 @@ try {
     $luaEntries = @($zip.Entries | Where-Object {
         $_.FullName.Replace("\", "/") -like "lua/*/zarg4n_*.lua"
     })
-    if ($luaEntries.Count -ne 12) { throw "Runtime archive must contain exactly 12 Lua files." }
+    $runtimeLuaFiles = @(Get-ChildItem -Recurse -File -LiteralPath (Join-Path $root "runtime\lua") |
+        Where-Object { $_.Name -like "zarg4n_*.lua" })
+    if ($luaEntries.Count -ne $runtimeLuaFiles.Count) {
+        throw "Runtime archive Lua count differs from the runtime source tree."
+    }
     if (-not ($luaEntries.FullName.Replace("\", "/") -contains "lua/autorun/zarg4n_career_overhaul.lua")) {
         throw "Runtime entrypoint must be packaged under lua/autorun."
     }
@@ -50,11 +54,11 @@ finally {
 $complete = [System.IO.Compression.ZipFile]::OpenRead($completeZip)
 try {
     $requiredEntries = @{
-        "zarg4n Career Overhaul 0.1.0-alpha.fifamod" = $mod
-        "zarg4n Career Overhaul 0.1.0-alpha - Live Editor Runtime.zip" = $runtimeZip
+        "zarg4n Career Overhaul 0.2.0.fifamod" = $mod
+        "zarg4n Career Overhaul 0.2.0 - Live Editor Runtime.zip" = $runtimeZip
         "README.md" = (Join-Path $root "README.md")
         "INSTALLATION.md" = (Join-Path $root "docs\INSTALLATION.md")
-        "RELEASE_NOTES_0.1.0-alpha.md" = (Join-Path $release "RELEASE_NOTES_0.1.0-alpha.md")
+        "RELEASE_NOTES_0.2.0.md" = (Join-Path $release "RELEASE_NOTES_0.2.0.md")
     }
     foreach ($entryName in $requiredEntries.Keys) {
         $entry = $complete.GetEntry($entryName)
