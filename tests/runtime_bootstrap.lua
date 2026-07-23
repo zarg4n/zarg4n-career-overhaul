@@ -31,8 +31,13 @@ package.preload["zarg4n_state_store"] = function()
     end
     return Store
 end
+local allow_writes = false
 package.preload["zarg4n_save_guard"] = function()
-    return { CanWrite = function() return false, "new-career marker required" end }
+    return {
+        CanWrite = function()
+            return allow_writes, allow_writes and nil or "new-career marker required"
+        end,
+    }
 end
 package.preload["zarg4n_migrations"] = function()
     return {
@@ -77,20 +82,24 @@ dofile("src/lua/zarg4n_career_overhaul.lua")
 
 assert(handlers == 1, "entrypoint must register one career event handler")
 assert(#loaded_uids == 1 and loaded_uids[1] == "save-a", "bootstrap must load the active save")
+allow_writes = true
+registered_handler(nil, 999, {})
+assert(saved_states == 0, "unrelated career events must not write unchanged state")
+allow_writes = false
 active_uid = "save-b"
 registered_handler(nil, 29, {})
 assert(#loaded_uids == 2 and loaded_uids[2] == "save-b", "save switch must reload isolated state")
-assert(dispatched_events == 1, "valid switched save event must dispatch")
+assert(dispatched_events == 2, "valid switched save event must dispatch")
 
 active_uid = ""
 registered_handler(nil, 29, {})
-assert(dispatched_events == 1, "blank UID must fail closed without reusing prior runtime")
+assert(dispatched_events == 2, "blank UID must fail closed without reusing prior runtime")
 assert(#loaded_uids == 2, "blank UID must not load or reuse a state")
 assert(#logged_errors >= 1, "blank UID must be logged safely")
 
 active_uid = "../invalid"
 registered_handler(nil, 29, {})
-assert(dispatched_events == 1, "invalid UID must fail closed before dispatch")
+assert(dispatched_events == 2, "invalid UID must fail closed before dispatch")
 assert(#loaded_uids == 2, "invalid UID must not reach state store")
 
 active_uid = "save-b"

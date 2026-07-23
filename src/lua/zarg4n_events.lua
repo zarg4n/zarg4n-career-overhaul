@@ -106,50 +106,51 @@ local function commit_profile(profile, transaction, current_date)
     Profile.AdvanceSeason(profile)
 end
 
-local function row_for_player(player_id)
-    local table_ref = LE.db:GetTable("players")
-    local record = table_ref:GetFirstRecord()
+local function rows_for_players(players_table, player_ids)
+    local rows = {}
+    local current_date = GetCurrentDate()
+    local record = players_table:GetFirstRecord()
     while record > 0 do
-        if table_ref:GetRecordFieldValue(record, "playerid") == player_id then
-            local position_id = table_ref:GetRecordFieldValue(record, "preferredposition1")
-            local birthdate = table_ref:GetRecordFieldValue(record, "birthdate")
-            local date = GetCurrentDate()
+        local player_id = players_table:GetRecordFieldValue(record, "playerid")
+        if player_ids[player_id] then
+            local position_id = players_table:GetRecordFieldValue(record, "preferredposition1")
+            local birthdate = players_table:GetRecordFieldValue(record, "birthdate")
             local date_obj = Date:new()
             date_obj:FromGregorianDays(birthdate)
-            return {
+            rows[player_id] = {
                 record = record,
                 playerid = player_id,
                 position_name = GetPlayerPrimaryPositionName(position_id),
-                age = CalculatePlayerAge(date, date_obj),
-                overallrating = table_ref:GetRecordFieldValue(record, "overallrating"),
-                potential = table_ref:GetRecordFieldValue(record, "potential"),
-                strength = table_ref:GetRecordFieldValue(record, "strength"),
-                jumping = table_ref:GetRecordFieldValue(record, "jumping"),
-                shotpower = table_ref:GetRecordFieldValue(record, "shotpower"),
-                longshots = table_ref:GetRecordFieldValue(record, "longshots"),
-                stamina = table_ref:GetRecordFieldValue(record, "stamina"),
-                acceleration = table_ref:GetRecordFieldValue(record, "acceleration"),
-                sprintspeed = table_ref:GetRecordFieldValue(record, "sprintspeed"),
-                interceptions = table_ref:GetRecordFieldValue(record, "interceptions"),
-                finishing = table_ref:GetRecordFieldValue(record, "finishing"),
-                positioning = table_ref:GetRecordFieldValue(record, "positioning"),
-                reactions = table_ref:GetRecordFieldValue(record, "reactions"),
-                ballcontrol = table_ref:GetRecordFieldValue(record, "ballcontrol"),
-                dribbling = table_ref:GetRecordFieldValue(record, "dribbling"),
-                vision = table_ref:GetRecordFieldValue(record, "vision"),
-                shortpassing = table_ref:GetRecordFieldValue(record, "shortpassing"),
-                longpassing = table_ref:GetRecordFieldValue(record, "longpassing"),
-                standingtackle = table_ref:GetRecordFieldValue(record, "standingtackle"),
-                defensiveawareness = table_ref:GetRecordFieldValue(record, "defensiveawareness"),
-                height = table_ref:GetRecordFieldValue(record, "height"),
-                weight = table_ref:GetRecordFieldValue(record, "weight"),
-                trait1 = table_ref:GetRecordFieldValue(record, "trait1"),
-                icontrait1 = table_ref:GetRecordFieldValue(record, "icontrait1"),
+                age = CalculatePlayerAge(current_date, date_obj),
+                overallrating = players_table:GetRecordFieldValue(record, "overallrating"),
+                potential = players_table:GetRecordFieldValue(record, "potential"),
+                strength = players_table:GetRecordFieldValue(record, "strength"),
+                jumping = players_table:GetRecordFieldValue(record, "jumping"),
+                shotpower = players_table:GetRecordFieldValue(record, "shotpower"),
+                longshots = players_table:GetRecordFieldValue(record, "longshots"),
+                stamina = players_table:GetRecordFieldValue(record, "stamina"),
+                acceleration = players_table:GetRecordFieldValue(record, "acceleration"),
+                sprintspeed = players_table:GetRecordFieldValue(record, "sprintspeed"),
+                interceptions = players_table:GetRecordFieldValue(record, "interceptions"),
+                finishing = players_table:GetRecordFieldValue(record, "finishing"),
+                positioning = players_table:GetRecordFieldValue(record, "positioning"),
+                reactions = players_table:GetRecordFieldValue(record, "reactions"),
+                ballcontrol = players_table:GetRecordFieldValue(record, "ballcontrol"),
+                dribbling = players_table:GetRecordFieldValue(record, "dribbling"),
+                vision = players_table:GetRecordFieldValue(record, "vision"),
+                shortpassing = players_table:GetRecordFieldValue(record, "shortpassing"),
+                longpassing = players_table:GetRecordFieldValue(record, "longpassing"),
+                standingtackle = players_table:GetRecordFieldValue(record, "standingtackle"),
+                defensiveawareness = players_table:GetRecordFieldValue(record, "defensiveawareness"),
+                height = players_table:GetRecordFieldValue(record, "height"),
+                weight = players_table:GetRecordFieldValue(record, "weight"),
+                trait1 = players_table:GetRecordFieldValue(record, "trait1"),
+                icontrait1 = players_table:GetRecordFieldValue(record, "icontrait1"),
             }
         end
-        record = table_ref:GetNextValidRecord()
+        record = players_table:GetNextValidRecord()
     end
-    return nil
+    return rows
 end
 
 function Events.new(runtime)
@@ -157,6 +158,21 @@ function Events.new(runtime)
         runtime = runtime,
         transfer_observer = TransferObserver.New(),
     }, Events)
+end
+
+function Events:EnsureDevelopmentManagerReady()
+    if self.runtime.development_manager_ready == true then
+        return true
+    end
+    local loaded, load_error = pcall(function()
+        self.runtime.player_development_manager:Load()
+    end)
+    if not loaded then
+        Logger:Error("Development manager load failed: " .. tostring(load_error))
+        return false
+    end
+    self.runtime.development_manager_ready = true
+    return true
 end
 
 function Events:CommitPreparedTransaction(
@@ -220,15 +236,20 @@ function Events:InitializePlayers()
     if not can_write then
         return
     end
+    if not self:EnsureDevelopmentManagerReady() then
+        return
+    end
 
     local player_ids = GetUserSeniorTeamPlayerIDs()
     local players_table = LE.db:GetTable("players")
+    local rows = rows_for_players(players_table, player_ids)
     local state_changed = false
     for player_id, _ in pairs(player_ids) do
-        local row = row_for_player(player_id)
+        local row = rows[player_id]
         local key = tostring(player_id)
         if row ~= nil and row.age <= Config.max_profile_age and self.runtime.state.players[key] == nil then
             self.runtime.state.players[key] = Profile.Create(row, self.runtime.state.save_uid)
+            state_changed = true
         end
         if row ~= nil and row.age <= Config.max_profile_age and self.runtime.state.players[key] ~= nil then
             local profile = self.runtime.state.players[key]
@@ -288,7 +309,10 @@ function Events:InitializePlayers()
             end
         end
     end
-    self.runtime.state.initialized = true
+    if self.runtime.state.initialized ~= true then
+        self.runtime.state.initialized = true
+        state_changed = true
+    end
     if state_changed then
         local saved, save_error = self.runtime.state_store:Save(self.runtime.state)
         if not saved then
@@ -311,10 +335,11 @@ function Events:ProcessSeasonEnd()
 
     local players_table = LE.db:GetTable("players")
     local player_ids = GetUserSeniorTeamPlayerIDs()
+    local rows = rows_for_players(players_table, player_ids)
     local all_successful = true
     for player_id, _ in pairs(player_ids) do
         local key = tostring(player_id)
-        local row = row_for_player(player_id)
+        local row = rows[player_id]
         local profile = self.runtime.state.players[key]
         if row ~= nil and row.age <= Config.max_profile_age and profile == nil then
             profile = Profile.Create(row, self.runtime.state.save_uid)
@@ -411,8 +436,8 @@ function Events:OnCareerEvent(_, event_id, _)
             Logger:Error("New-career activation checkpoint failed: " .. tostring(save_error))
             return
         end
-        self:InitializePlayers()
-    elseif event_id == ENUM_CM_EVENT_MSG_POST_LOAD_PREPARE then
+    elseif event_id == ENUM_CM_EVENT_MSG_DATA_READY
+        or event_id == ENUM_CM_EVENT_MSG_POST_LOAD_PREPARE then
         local can_write = SaveGuard.CanWrite(self.runtime.state)
         if can_write then
             self:InitializePlayers()

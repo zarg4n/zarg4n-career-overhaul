@@ -25,12 +25,14 @@ local runtime = {
     state_store = nil,
     events = nil,
     player_development_manager = nil,
+    development_manager_ready = false,
 }
 
 local function clear_active_save()
     runtime.state = nil
     runtime.events = nil
     runtime.player_development_manager = nil
+    runtime.development_manager_ready = false
 end
 
 local function safe_error(message)
@@ -48,20 +50,10 @@ local function load_save(save_uid)
         return false
     end
 
-    local player_development_manager = LE.player_development_manager
-    local manager_loaded, manager_error = pcall(function()
-        player_development_manager:Load()
-    end)
-    if not manager_loaded then
-        Logger:Warn("Development manager load failed: " .. tostring(manager_error))
-    end
     runtime.state = state
-    runtime.player_development_manager = player_development_manager
+    runtime.player_development_manager = LE.player_development_manager
+    runtime.development_manager_ready = false
     runtime.events = Events.new(runtime)
-    local can_write = SaveGuard.CanWrite(runtime.state)
-    if can_write then
-        runtime.events:InitializePlayers()
-    end
     Logger:Info(
         "Loaded " .. Config.author
             .. " runtime v" .. Config.version
@@ -103,13 +95,6 @@ local function on_career_event(_, event_id, event)
             end
         end
         runtime.events:OnCareerEvent(_, event_id, event)
-        local can_write = runtime.state ~= nil and SaveGuard.CanWrite(runtime.state)
-        if can_write and runtime.state_store ~= nil then
-            local ok, error_message = runtime.state_store:Save(runtime.state)
-            if not ok then
-                Logger:Error("State save failed: " .. tostring(error_message))
-            end
-        end
     end
 end
 

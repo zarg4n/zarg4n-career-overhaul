@@ -4,6 +4,7 @@ package.preload["imports/career_mode/enums"] = function()
     ENUM_CM_EVENT_MSG_INITIAL_USER_ADDED = 1
     ENUM_CM_EVENT_MSG_POST_LOAD_PREPARE = 2
     ENUM_CM_EVENT_MSG_END_OF_SEASON_REACHED = 3
+    ENUM_CM_EVENT_MSG_DATA_READY = 4
     return true
 end
 package.preload["imports/other/helpers"] = function() return true end
@@ -71,7 +72,10 @@ LE = {
     db = {
         GetTable = function()
             db_reads = db_reads + 1
-            return {}
+            return {
+                GetFirstRecord = function() return 0 end,
+                GetNextValidRecord = function() return 0 end,
+            }
         end,
     },
 }
@@ -87,6 +91,7 @@ local Migrations = require "zarg4n_migrations"
 local SaveGuard = require "zarg4n_save_guard"
 local state = assert(Migrations.NewState("new-career-test"))
 local save_calls = 0
+local manager_load_calls = 0
 local runtime = {
     state = state,
     state_store = {
@@ -95,7 +100,11 @@ local runtime = {
             return true
         end,
     },
-    player_development_manager = { Save = function() end },
+    player_development_manager = {
+        Load = function() manager_load_calls = manager_load_calls + 1 end,
+        Save = function() end,
+    },
+    development_manager_ready = false,
 }
 
 local Events = require "zarg4n_events"
@@ -112,6 +121,12 @@ assert(SaveGuard.CanWrite(state) == true, "initial-user event must mark the new 
 assert(state.eligibility.source == "career_event", "eligibility source must be explicit")
 assert(state.eligibility.marker == "initial_user_added", "eligibility marker must be stable")
 assert(save_calls >= 1, "eligibility must be checkpointed")
+assert(db_reads == 0, "initial-user event must not scan career tables before data is ready")
+assert(manager_load_calls == 0, "initial-user event must not load career managers before data is ready")
+
+events:OnCareerEvent(nil, ENUM_CM_EVENT_MSG_DATA_READY, {})
+assert(db_reads == 1, "data-ready event must initialize players after career data is ready")
+assert(manager_load_calls == 1, "data-ready event must load the development manager once")
 
 local date_calls_before_unrelated = date_calls
 events:OnCareerEvent(nil, 999, {})

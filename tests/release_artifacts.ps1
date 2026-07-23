@@ -18,6 +18,23 @@ if ([System.Text.Encoding]::ASCII.GetString($projectHeader) -ne "FETP") {
     throw "Invalid FIFA Editing Toolsuite project header."
 }
 
+$modBytes = [System.IO.File]::ReadAllBytes($mod)
+$modText = [System.Text.Encoding]::ASCII.GetString($modBytes)
+$requiredModStrings = @(
+    "dlc/dlc_FootballCompEng/dlc/FootballCompEng/data/youth_scout.ini",
+    "fifa/fesplash/splashscreen/splashscreen"
+)
+foreach ($requiredString in $requiredModStrings) {
+    if (-not $modText.Contains($requiredString)) {
+        throw "FIFAMOD is missing required asset: $requiredString"
+    }
+}
+foreach ($forbiddenString in @("fcgameplay/", "attribulator/")) {
+    if ($modText.Contains($forbiddenString)) {
+        throw "FIFAMOD contains forbidden gameplay asset: $forbiddenString"
+    }
+}
+
 $zip = [System.IO.Compression.ZipFile]::OpenRead($runtimeZip)
 try {
     $luaEntries = @($zip.Entries | Where-Object {

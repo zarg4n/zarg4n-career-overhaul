@@ -2,14 +2,17 @@
 
 ## 0.2.0 — 23 July 2026
 
-- Made a fresh Manager Career mandatory and rejected legacy runtime state.
-- Added strict save UID isolation and fail-closed event handling.
-- Added durable write-ahead transaction checkpoints and idempotent recovery.
-- Extended controlled development through age 29 with a 27–28 prime window.
-- Expanded PlayStyle candidate logic to fifteen mapped FC 26 styles.
-- Added deterministic personality, bounded memory and bilingual narrative foundations.
-- Added read-only transfer event observation without negotiation or gameplay writes.
-- Preserved source/runtime parity and expanded behavioural, safety and package tests.
+- A fresh Manager Career is now required.
+- Each career keeps its own player development data when switching saves.
+- Season-end development is protected from being applied twice.
+- Interrupted development updates can continue safely.
+- Controlled development now covers the 27–28 prime window.
+- Expanded the selection of PlayStyles players can earn.
+- Added player personality foundations and Turkish/English support.
+- Added the custom zarg4n 4K splashscreen.
+- Moved the first player scan to the safe career-ready stage to prevent a crash while creating a new career.
+- Reduced player-table work to one scan and removed unnecessary state writes from unrelated career events.
+- Kept gameplay physics and CPU behaviour unchanged.
 
 ## 0.1.0-alpha — 23 July 2026
 

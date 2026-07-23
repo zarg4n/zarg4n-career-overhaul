@@ -145,8 +145,13 @@ if ($stateStore -match '\\Desktop\\') {
     throw "Runtime state must remain inside the Live Editor data directory."
 }
 
-if ($entrypoint -notmatch 'player_development_manager:Load') {
-    throw "Live Editor development overrides must be loaded for the active save."
+if ($events -notmatch 'EnsureDevelopmentManagerReady[\s\S]*player_development_manager:Load') {
+    throw "Live Editor development overrides must be loaded only after career data is ready."
+}
+
+if ($entrypoint -match 'player_development_manager:Load' -or
+    $entrypoint -match 'load_save[\s\S]{0,1200}InitializePlayers') {
+    throw "Runtime must not access career database managers while the save is still loading."
 }
 
 if ($entrypoint -notmatch 'package\.path') {
