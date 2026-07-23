@@ -13,6 +13,64 @@ local Date = require "imports/core/date"
 local Events = {}
 Events.__index = Events
 
+local function deep_copy(value, copies)
+    if type(value) ~= "table" then
+        return value
+    end
+
+    copies = copies or {}
+    if copies[value] ~= nil then
+        return copies[value]
+    end
+
+    local copy = {}
+    copies[value] = copy
+    for key, item in pairs(value) do
+        copy[deep_copy(key, copies)] = deep_copy(item, copies)
+    end
+    return setmetatable(copy, getmetatable(value))
+end
+
+local function snapshot_profile(profile)
+    return {
+        last_development = deep_copy(profile.last_development),
+        playstyle_candidates = deep_copy(profile.playstyle_candidates),
+        last_playstyle_award = deep_copy(profile.last_playstyle_award),
+        last_stats = deep_copy(profile.last_stats),
+        physical_projection = deep_copy(profile.physical_projection),
+        last_processed_date = deep_copy(profile.last_processed_date),
+        archetype_phase = deep_copy(profile.archetype_phase),
+        role_archetype = deep_copy(profile.role_archetype),
+        candidate_affinities = deep_copy(profile.candidate_affinities),
+        archetype_history = deep_copy(profile.archetype_history),
+        strength_growth_total = deep_copy(profile.strength_growth_total),
+        jumping_growth_total = deep_copy(profile.jumping_growth_total),
+        pending_transaction = deep_copy(profile.pending_transaction),
+        committed_transaction = deep_copy(profile.committed_transaction),
+        seasons_observed = deep_copy(profile.seasons_observed),
+        identity_revealed = deep_copy(profile.identity_revealed),
+    }
+end
+
+local function restore_profile(profile, snapshot)
+    profile.last_development = deep_copy(snapshot.last_development)
+    profile.playstyle_candidates = deep_copy(snapshot.playstyle_candidates)
+    profile.last_playstyle_award = deep_copy(snapshot.last_playstyle_award)
+    profile.last_stats = deep_copy(snapshot.last_stats)
+    profile.physical_projection = deep_copy(snapshot.physical_projection)
+    profile.last_processed_date = deep_copy(snapshot.last_processed_date)
+    profile.archetype_phase = deep_copy(snapshot.archetype_phase)
+    profile.role_archetype = deep_copy(snapshot.role_archetype)
+    profile.candidate_affinities = deep_copy(snapshot.candidate_affinities)
+    profile.archetype_history = deep_copy(snapshot.archetype_history)
+    profile.strength_growth_total = deep_copy(snapshot.strength_growth_total)
+    profile.jumping_growth_total = deep_copy(snapshot.jumping_growth_total)
+    profile.pending_transaction = deep_copy(snapshot.pending_transaction)
+    profile.committed_transaction = deep_copy(snapshot.committed_transaction)
+    profile.seasons_observed = deep_copy(snapshot.seasons_observed)
+    profile.identity_revealed = deep_copy(snapshot.identity_revealed)
+end
+
 local function row_for_player(player_id)
     local table_ref = LE.db:GetTable("players")
     local record = table_ref:GetFirstRecord()
@@ -36,7 +94,18 @@ local function row_for_player(player_id)
                 longshots = table_ref:GetRecordFieldValue(record, "longshots"),
                 stamina = table_ref:GetRecordFieldValue(record, "stamina"),
                 acceleration = table_ref:GetRecordFieldValue(record, "acceleration"),
+                sprintspeed = table_ref:GetRecordFieldValue(record, "sprintspeed"),
                 interceptions = table_ref:GetRecordFieldValue(record, "interceptions"),
+                finishing = table_ref:GetRecordFieldValue(record, "finishing"),
+                positioning = table_ref:GetRecordFieldValue(record, "positioning"),
+                reactions = table_ref:GetRecordFieldValue(record, "reactions"),
+                ballcontrol = table_ref:GetRecordFieldValue(record, "ballcontrol"),
+                dribbling = table_ref:GetRecordFieldValue(record, "dribbling"),
+                vision = table_ref:GetRecordFieldValue(record, "vision"),
+                shortpassing = table_ref:GetRecordFieldValue(record, "shortpassing"),
+                longpassing = table_ref:GetRecordFieldValue(record, "longpassing"),
+                standingtackle = table_ref:GetRecordFieldValue(record, "standingtackle"),
+                defensiveawareness = table_ref:GetRecordFieldValue(record, "defensiveawareness"),
                 height = table_ref:GetRecordFieldValue(record, "height"),
                 weight = table_ref:GetRecordFieldValue(record, "weight"),
                 trait1 = table_ref:GetRecordFieldValue(record, "trait1"),
@@ -149,7 +218,7 @@ function Events:ProcessSeasonEnd()
             if transaction == nil or transaction.date ~= current_date then
                 local stats = Stats.Aggregate(player_id, GetPlayerStats(player_id))
                 local result = Development.Calculate(profile, stats, row)
-                local candidates = PlayStyles.BuildCandidates(profile, row, stats)
+                local candidates, evolution = PlayStyles.BuildCandidates(profile, row, stats)
                 local physical = PhysicalGrowth.Calculate(profile, row, {
                     age = row.age,
                     performance_score = result.performance_score,
@@ -163,6 +232,7 @@ function Events:ProcessSeasonEnd()
                     stats = stats,
                     result = result,
                     candidates = candidates,
+                    evolution = evolution,
                     physical = physical,
                     award = PlayStyles.ResolveAward(profile, row, stats, candidates),
                 }
@@ -204,11 +274,8 @@ function Events:ProcessSeasonEnd()
                         .. tostring(player_id) .. ": " .. tostring(error_message))
                     all_successful = false
                 else
-                    local previous_seasons = profile.seasons_observed
-                    local previous_identity = profile.identity_revealed
-                    local previous_strength_total = profile.strength_growth_total
-                    local previous_jumping_total = profile.jumping_growth_total
-                    local previous_committed = profile.committed_transaction
+                    local profile_snapshot = snapshot_profile(profile)
+                    PlayStyles.ApplyEvolution(profile, transaction.evolution)
                     profile.last_development = transaction.result
                     profile.playstyle_candidates = transaction.candidates
                     profile.last_playstyle_award = transaction.award
@@ -222,13 +289,7 @@ function Events:ProcessSeasonEnd()
                     Profile.AdvanceSeason(profile)
                     local committed, commit_error = self.runtime.state_store:Save(self.runtime.state)
                     if not committed then
-                        profile.last_processed_date = nil
-                        profile.pending_transaction = transaction
-                        profile.seasons_observed = previous_seasons
-                        profile.identity_revealed = previous_identity
-                        profile.strength_growth_total = previous_strength_total
-                        profile.jumping_growth_total = previous_jumping_total
-                        profile.committed_transaction = previous_committed
+                        restore_profile(profile, profile_snapshot)
                         Logger:Error("Player transaction commit failed for "
                             .. tostring(player_id) .. ": " .. tostring(commit_error))
                         all_successful = false

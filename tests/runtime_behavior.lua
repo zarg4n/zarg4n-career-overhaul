@@ -37,6 +37,8 @@ local created_profile = Profile.Create({
 assert(type(created_profile.regular_playstyles) == "table", "profile must track regular PlayStyles")
 assert(type(created_profile.plus_playstyles) == "table", "profile must track PlayStyle+ awards")
 assert(created_profile.identity_revealed == false, "new prospect identity must start hidden")
+assert(created_profile.archetype_phase == "prospect", "young players must begin in the prospect phase")
+assert(type(created_profile.candidate_affinities) == "table", "profiles must persist candidate affinities")
 Profile.AdvanceSeason(created_profile)
 assert(created_profile.identity_revealed == true, "prospect identity must reveal after one observed season")
 
@@ -67,12 +69,38 @@ local strong_result = Development.Calculate(profile, strong_season, {
 })
 assert(strong_result.potential_delta >= 1, "exceptional full season must affect potential")
 assert(strong_result.potential_delta <= 3, "potential growth must remain capped")
+assert(strong_result.potential_delta <= 2, "one season must not create superstar acceleration")
+assert(strong_result.development_multiplier <= 1.22,
+    "a strong youth season must stay below the development-manager hard ceiling")
+local ordinary_youth_result = Development.Calculate(profile, Stats.Aggregate(10, {
+    { app = 25, avg = 1750, goals = 4, assists = 4 },
+}), {
+    age = 18,
+    overallrating = 68,
+    potential = 82,
+})
+assert(ordinary_youth_result.development_multiplier <= 1.16,
+    "an ordinary positive youth season must grow conservatively")
 local prime_result = Development.Calculate(profile, strong_season, {
     age = 28,
     overallrating = 78,
     potential = 80,
 })
 assert(prime_result.write_potential == true, "performance development must include the prime years")
+assert(prime_result.development_multiplier > 1,
+    "elite performance must still support conservative development at the 27-28 peak")
+local age_29_result = Development.Calculate(profile, strong_season, {
+    age = 29,
+    overallrating = 79,
+    potential = 80,
+})
+assert(age_29_result.write_potential == true, "dynamic potential must remain active through age 29")
+local age_30_result = Development.Calculate(profile, strong_season, {
+    age = 30,
+    overallrating = 80,
+    potential = 80,
+})
+assert(age_30_result.write_potential == false, "dynamic potential must stop after age 29")
 local peaked_result = Development.Calculate(profile, {
     appearances = 20,
     average_rating = 6.5,
@@ -142,6 +170,152 @@ for _, candidate in ipairs(bruiser_candidates) do
     has_bruiser = has_bruiser or candidate.id == "BRUISER"
 end
 assert(has_bruiser, "physical identity must qualify for Bruiser")
+
+local evolving_winger = Profile.Create({
+    playerid = 202,
+    position_name = "LW",
+    age = 18,
+    overallrating = 72,
+    potential = 86,
+    height = 178,
+    weight = 70,
+}, "save-1")
+local original_role = evolving_winger.role_archetype
+local original_phase = evolving_winger.archetype_phase
+local original_affinities_empty = next(evolving_winger.candidate_affinities) == nil
+local young_winger_candidates, young_evolution = PlayStyles.BuildCandidates(evolving_winger, {
+    age = 20,
+    position_name = "LW",
+    acceleration = 88,
+    sprintspeed = 87,
+    dribbling = 84,
+    ballcontrol = 80,
+    finishing = 72,
+    positioning = 74,
+    reactions = 76,
+}, strong_season)
+assert(evolving_winger.role_archetype == original_role
+    and evolving_winger.archetype_phase == original_phase
+    and original_affinities_empty
+    and next(evolving_winger.candidate_affinities) == nil,
+    "candidate calculation must not mutate profile state before transaction prepare")
+local pre_commit_affinities = evolving_winger.candidate_affinities
+local pre_commit_history = evolving_winger.archetype_history
+PlayStyles.ApplyEvolution(evolving_winger, young_evolution)
+assert(next(pre_commit_affinities) == nil and #pre_commit_history == 0,
+    "evolution commit must replace profile collections so state rollback can restore old references")
+assert(evolving_winger.archetype_phase == "emerging", "young senior players must enter the emerging phase")
+assert(evolving_winger.role_archetype == "explosive_winger",
+    "a fast young winger must retain an explosive winger identity")
+local young_has_speed_style = false
+for _, item in ipairs(young_winger_candidates) do
+    young_has_speed_style = young_has_speed_style or item.id == "QUICK_STEP" or item.id == "RAPID"
+end
+assert(young_has_speed_style, "explosive wingers must prefer mapped speed PlayStyles")
+
+local prime_winger_candidates, prime_evolution = PlayStyles.BuildCandidates(evolving_winger, {
+    age = 28,
+    position_name = "LW",
+    acceleration = 80,
+    sprintspeed = 79,
+    dribbling = 82,
+    ballcontrol = 86,
+    finishing = 88,
+    positioning = 87,
+    reactions = 86,
+    shotpower = 79,
+    longshots = 74,
+}, strong_season)
+PlayStyles.ApplyEvolution(evolving_winger, prime_evolution)
+assert(evolving_winger.archetype_phase == "prime", "27-28 year olds must be represented as prime players")
+assert(evolving_winger.role_archetype == "efficient_forward",
+    "a maturing explosive winger may evolve into an efficient forward without a position rewrite")
+assert(evolving_winger.position == "LW", "archetype evolution must not change the gameplay position")
+assert((evolving_winger.candidate_affinities.FINESSE_SHOT or 0) > 0,
+    "efficient forward evolution must persist finishing affinity")
+local prime_has_finisher_style = false
+for _, item in ipairs(prime_winger_candidates) do
+    prime_has_finisher_style = prime_has_finisher_style
+        or item.id == "FINESSE_SHOT"
+        or item.id == "LOW_DRIVEN_SHOT"
+        or item.id == "FIRST_TOUCH"
+end
+assert(prime_has_finisher_style, "efficient forwards must prefer mapped finishing PlayStyles")
+
+local former_winger = {
+    initialized_age = 18,
+    position = "LW",
+    role_archetype = "efficient_forward",
+    archetype_phase = "prime",
+    technical_potential = 70,
+    mental_potential = 70,
+    physical_potential = 50,
+    speed_potential = 55,
+    aerial_potential = 40,
+    candidate_affinities = {},
+    archetype_history = {},
+}
+local _, midfield_evolution = PlayStyles.BuildCandidates(former_winger, {
+    age = 29,
+    position_name = "CM",
+    acceleration = 70,
+    sprintspeed = 70,
+    finishing = 70,
+    positioning = 72,
+}, strong_season)
+assert(midfield_evolution.role_archetype == "balanced_midfielder",
+    "archetype must fall back when position and attributes no longer match the previous role")
+assert(former_winger.role_archetype == "efficient_forward",
+    "fallback proposals must remain pure until explicitly committed")
+PlayStyles.ApplyEvolution(former_winger, midfield_evolution)
+assert(former_winger.role_archetype == "balanced_midfielder",
+    "committing the transaction must replace stale archetypes")
+
+local playmaker_candidates = PlayStyles.BuildCandidates({
+    position = "CM",
+    technical_potential = 82,
+    mental_potential = 84,
+    physical_potential = 50,
+    speed_potential = 55,
+    aerial_potential = 40,
+    candidate_affinities = {},
+}, {
+    age = 25,
+    position_name = "CM",
+    vision = 86,
+    shortpassing = 88,
+    longpassing = 85,
+    ballcontrol = 84,
+}, strong_season)
+local has_passing_style = false
+for _, item in ipairs(playmaker_candidates) do
+    has_passing_style = has_passing_style
+        or item.id == "INCISIVE_PASS"
+        or item.id == "PINGED_PASS"
+        or item.id == "LONG_BALL_PASS"
+        or item.id == "TIKI_TAKA"
+end
+assert(has_passing_style, "technical midfielders must receive mapped passing candidates")
+
+local defensive_candidates = PlayStyles.BuildCandidates({
+    position = "CB",
+    technical_potential = 45,
+    mental_potential = 60,
+    physical_potential = 60,
+    speed_potential = 55,
+    aerial_potential = 65,
+    candidate_affinities = {},
+}, {
+    age = 24,
+    position_name = "CB",
+    standingtackle = 84,
+    defensiveawareness = 82,
+}, strong_season)
+local has_anticipate = false
+for _, item in ipairs(defensive_candidates) do
+    has_anticipate = has_anticipate or item.id == "ANTICIPATE"
+end
+assert(has_anticipate, "Anticipate must use the verified FC 26 defensiveawareness field")
 
 assert(PlayStyles.AddFlag(0, "POWER_SHOT") == 4, "Power Shot must use the FC 26 trait bit")
 assert(PlayStyles.AddFlag(4, "POWER_SHOT") == 4, "adding a trait twice must be idempotent")
@@ -263,5 +437,11 @@ assert(late_body.height_delta_cm == 0 and late_body.weight_delta_kg <= 1,
 local poor_body = PhysicalGrowth.Calculate(athletic_profile, {}, { age = 19, performance_score = -0.4 })
 assert(poor_body.strength_growth == 0 and poor_body.jumping_growth == 0,
     "automatic physical attributes must not rise after a poor season")
+local post_body = PhysicalGrowth.Calculate(athletic_profile, {}, { age = 24, performance_score = 1 })
+assert(post_body.height_delta_cm == 0
+    and post_body.weight_delta_kg == 0
+    and post_body.strength_growth == 0
+    and post_body.jumping_growth == 0,
+    "all custom physical body and attribute growth must end after age 23")
 
 print("PASS: runtime development behavior is conservative.")

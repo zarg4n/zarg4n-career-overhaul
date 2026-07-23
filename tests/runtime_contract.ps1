@@ -23,6 +23,27 @@ if ($events -notmatch 'PlayerWriter\.Apply') {
     throw "Calculated potential, physical growth and PlayStyles are not written to the career database."
 }
 
+$candidateFields = @(
+    "strength", "jumping", "shotpower", "longshots", "stamina", "acceleration",
+    "sprintspeed", "interceptions", "finishing", "positioning", "reactions",
+    "ballcontrol", "dribbling", "vision", "shortpassing", "longpassing",
+    "standingtackle", "defensiveawareness"
+)
+foreach ($field in $candidateFields) {
+    $escapedField = [regex]::Escape($field)
+    if ($events -notmatch "GetRecordFieldValue\(record,\s*`"$escapedField`"\)") {
+        throw "Events row does not read required FC 26 player field: $field"
+    }
+}
+
+if ($events -match 'GetRecordFieldValue\(record,\s*"marking"\)') {
+    throw "FC 26 defensive awareness must use defensiveawareness, not marking."
+}
+
+if ($events -notmatch 'evolution\s*=\s*evolution' -or $events -notmatch 'PlayStyles\.ApplyEvolution') {
+    throw "Archetype evolution must be prepared as transaction data and committed explicitly."
+}
+
 if ($events -notmatch 'last_processed_date') {
     throw "Season-end processing must be idempotent."
 }
@@ -37,6 +58,52 @@ if ($events -notmatch 'pending_transaction') {
 
 if ($events -notmatch 'committed_transaction' -or $events -notmatch 'PlayerWriter\.Matches') {
     throw "Completed targets must be reconciled against the EA career save after reload."
+}
+
+$rollbackFields = @(
+    "last_development",
+    "playstyle_candidates",
+    "last_playstyle_award",
+    "last_stats",
+    "physical_projection",
+    "last_processed_date",
+    "archetype_phase",
+    "role_archetype",
+    "candidate_affinities",
+    "archetype_history",
+    "strength_growth_total",
+    "jumping_growth_total",
+    "pending_transaction",
+    "committed_transaction",
+    "seasons_observed",
+    "identity_revealed"
+)
+
+$hasRollbackHelpers = (
+    $events -match 'local function snapshot_profile\s*\(' -and
+    $events -match 'local function restore_profile\s*\(' -and
+    $events -match 'local function deep_copy\s*\('
+)
+if (-not $hasRollbackHelpers) {
+    throw "Player transaction rollback must use explicit deep snapshot and restore helpers."
+}
+
+foreach ($field in $rollbackFields) {
+    $escapedField = [regex]::Escape($field)
+    if ($events -notmatch "$escapedField\s*=\s*deep_copy\(profile\.$escapedField\)") {
+        throw "Player transaction snapshot does not deep-copy profile field: $field"
+    }
+    if ($events -notmatch "profile\.$escapedField\s*=\s*deep_copy\(snapshot\.$escapedField\)") {
+        throw "Player transaction rollback does not restore profile field: $field"
+    }
+}
+
+if ($events -notmatch 'local profile_snapshot\s*=\s*snapshot_profile\(profile\)') {
+    throw "Player transaction must capture its complete profile snapshot before commit mutations."
+}
+
+if ($events -notmatch 'restore_profile\(profile,\s*profile_snapshot\)') {
+    throw "State commit failure must restore the complete pre-transaction profile snapshot."
 }
 
 if ($events -notmatch 'Config\.max_profile_age') {

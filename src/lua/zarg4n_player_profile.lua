@@ -71,6 +71,10 @@ function Profile.Create(player_row, save_uid)
         baseline_overall = current_ovr,
         regular_playstyles = {},
         plus_playstyles = {},
+        archetype_phase = (tonumber(player_row.age) or 18) <= 18 and "prospect" or "emerging",
+        role_archetype = "unresolved",
+        candidate_affinities = {},
+        archetype_history = {},
         seasons_observed = 0,
         identity_revealed = false,
     }

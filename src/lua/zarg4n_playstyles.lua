@@ -46,15 +46,106 @@ local function candidate(list, id, score, reason)
     table.insert(list, { id = id, score = score, reason = reason })
 end
 
+local function number(row, ...)
+    for index = 1, select("#", ...) do
+        local value = tonumber(row[select(index, ...)])
+        if value ~= nil then
+            return value
+        end
+    end
+    return 0
+end
+
+local function phase_for_age(age)
+    if age <= 18 then
+        return "prospect"
+    elseif age <= 23 then
+        return "emerging"
+    elseif age <= 26 then
+        return "established"
+    elseif age <= 29 then
+        return "prime"
+    end
+    return "veteran"
+end
+
+local function fallback_archetype(position)
+    if position == "GK" then
+        return "goalkeeper"
+    elseif position == "CB" or position == "LB" or position == "RB"
+        or position == "LWB" or position == "RWB" then
+        return "balanced_defender"
+    elseif position == "CDM" or position == "CM" or position == "CAM" then
+        return "balanced_midfielder"
+    elseif position == "ST" then
+        return "balanced_forward"
+    elseif position == "LW" or position == "RW" or position == "LM"
+        or position == "RM" or position == "CF" then
+        return "balanced_winger"
+    end
+    return "unresolved"
+end
+
+local function build_evolution(profile, player_row)
+    local age = number(player_row, "age")
+    if age == 0 then
+        age = tonumber(profile.initialized_age) or 18
+    end
+
+    local position = player_row.position_name or profile.position or ""
+    local speed = (number(player_row, "acceleration") + number(player_row, "sprint_speed", "sprintspeed")) / 2
+    local finishing = number(player_row, "finishing")
+    local positioning = number(player_row, "positioning", "attackposition")
+    local previous = profile.role_archetype
+    local role = fallback_archetype(position)
+    local wide_forward = position == "LW" or position == "RW"
+        or position == "LM" or position == "RM" or position == "CF"
+
+    if wide_forward and age >= 26 and finishing >= 82 and positioning >= 82 then
+        role = "efficient_forward"
+    elseif wide_forward and speed >= 82 then
+        role = "explosive_winger"
+    end
+
+    local history_entry = nil
+    if previous ~= nil and previous ~= role then
+        history_entry = {
+            age = age,
+            from = previous,
+            to = role,
+        }
+    end
+
+    return {
+        archetype_phase = phase_for_age(age),
+        role_archetype = role,
+        candidate_affinities = {},
+        history_entry = history_entry,
+    }
+end
+
 function PlayStyles.BuildCandidates(profile, player_row, stats)
     local candidates = {}
-    local strength = tonumber(player_row.strength) or 0
-    local jumping = tonumber(player_row.jumping) or 0
-    local shot_power = tonumber(player_row.shotpower) or 0
-    local long_shots = tonumber(player_row.longshots) or 0
-    local stamina = tonumber(player_row.stamina) or 0
-    local acceleration = tonumber(player_row.acceleration) or 0
-    local interceptions = tonumber(player_row.interceptions) or 0
+    local evolution = build_evolution(profile, player_row)
+
+    local strength = number(player_row, "strength")
+    local jumping = number(player_row, "jumping")
+    local shot_power = number(player_row, "shotpower")
+    local long_shots = number(player_row, "longshots")
+    local stamina = number(player_row, "stamina")
+    local acceleration = number(player_row, "acceleration")
+    local sprint_speed = number(player_row, "sprint_speed", "sprintspeed")
+    local interceptions = number(player_row, "interceptions")
+    local finishing = number(player_row, "finishing")
+    local positioning = number(player_row, "positioning", "attackposition")
+    local reactions = number(player_row, "reactions")
+    local ball_control = number(player_row, "ballcontrol")
+    local dribbling = number(player_row, "dribbling")
+    local vision = number(player_row, "vision")
+    local short_passing = number(player_row, "shortpassing")
+    local long_passing = number(player_row, "longpassing")
+    local standing_tackle = number(player_row, "standingtackle")
+    local defensive_awareness = number(player_row, "defensiveawareness")
 
     if strength >= 78 or (profile.physical_potential or 0) >= 75 then
         candidate(candidates, "BRUISER", strength + profile.physical_potential, "physical_profile")
@@ -71,13 +162,48 @@ function PlayStyles.BuildCandidates(profile, player_row, stats)
     if acceleration >= 82 or (profile.speed_potential or 0) >= 80 then
         candidate(candidates, "QUICK_STEP", acceleration + profile.speed_potential, "speed_profile")
     end
+    if sprint_speed >= 82 and acceleration >= 78 then
+        candidate(candidates, "RAPID", sprint_speed + acceleration, "sustained_speed")
+    end
+    if dribbling >= 82 and ball_control >= 78 then
+        candidate(candidates, "TECHNICAL", dribbling + ball_control, "technical_carrying")
+    end
     if interceptions >= 78 or (profile.mental_potential or 0) >= 80 then
         candidate(candidates, "INTERCEPT", interceptions + profile.mental_potential, "mental_profile")
+    end
+    if finishing >= 80 and positioning >= 78 then
+        candidate(candidates, "FINESSE_SHOT", finishing + positioning, "efficient_finishing")
+    end
+    if finishing >= 82 and shot_power >= 72 then
+        candidate(candidates, "LOW_DRIVEN_SHOT", finishing + shot_power, "box_finishing")
+    end
+    if ball_control >= 82 and reactions >= 80 then
+        candidate(candidates, "FIRST_TOUCH", ball_control + reactions, "efficient_control")
+    end
+    if vision >= 82 and short_passing >= 80 then
+        candidate(candidates, "INCISIVE_PASS", vision + short_passing, "creative_passing")
+    end
+    if short_passing >= 84 and ball_control >= 80 then
+        candidate(candidates, "TIKI_TAKA", short_passing + ball_control, "combination_passing")
+    end
+    if long_passing >= 82 then
+        candidate(candidates, "LONG_BALL_PASS", long_passing + vision, "range_passing")
+    end
+    if standing_tackle >= 80 and defensive_awareness >= 78 then
+        candidate(candidates, "ANTICIPATE", standing_tackle + defensive_awareness, "defensive_reading")
     end
 
     local behavior_bonus = math.min(20, (stats.goal_contribution or 0) * 2 + (stats.average_rating or 0))
     for _, item in ipairs(candidates) do
+        if evolution.role_archetype == "efficient_forward"
+            and (item.id == "FINESSE_SHOT" or item.id == "LOW_DRIVEN_SHOT" or item.id == "FIRST_TOUCH") then
+            item.score = item.score + 16
+        elseif evolution.role_archetype == "explosive_winger"
+            and (item.id == "QUICK_STEP" or item.id == "RAPID" or item.id == "TECHNICAL") then
+            item.score = item.score + 12
+        end
         item.score = item.score + behavior_bonus
+        evolution.candidate_affinities[item.id] = item.score
     end
 
     table.sort(candidates, function(left, right)
@@ -88,7 +214,34 @@ function PlayStyles.BuildCandidates(profile, player_row, stats)
     for index = 1, math.min(3, #candidates) do
         table.insert(result, candidates[index])
     end
-    return result
+    return result, evolution
+end
+
+function PlayStyles.ApplyEvolution(profile, evolution)
+    if evolution == nil then
+        return
+    end
+
+    profile.archetype_phase = evolution.archetype_phase
+    profile.role_archetype = evolution.role_archetype
+    local candidate_affinities = {}
+    for id, score in pairs(profile.candidate_affinities or {}) do
+        candidate_affinities[id] = score
+    end
+    for id, score in pairs(evolution.candidate_affinities or {}) do
+        candidate_affinities[id] = score
+    end
+    profile.candidate_affinities = candidate_affinities
+
+    local entry = evolution.history_entry
+    if entry ~= nil then
+        local archetype_history = {}
+        for _, existing in ipairs(profile.archetype_history or {}) do
+            table.insert(archetype_history, existing)
+        end
+        table.insert(archetype_history, entry)
+        profile.archetype_history = archetype_history
+    end
 end
 
 local function contains(list, id)
