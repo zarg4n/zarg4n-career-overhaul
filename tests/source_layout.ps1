@@ -1,6 +1,8 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $luaRoot = Join-Path $root "src\lua"
+$runtimeRoot = Join-Path $root "runtime\lua\scripts"
+$autorunRoot = Join-Path $root "runtime\lua\autorun"
 $required = @(
     "zarg4n_config.lua",
     "zarg4n_logger.lua",
@@ -10,13 +12,27 @@ $required = @(
     "zarg4n_development.lua",
     "zarg4n_physical_growth.lua",
     "zarg4n_playstyles.lua",
+    "zarg4n_player_writer.lua",
     "zarg4n_events.lua",
-    "zarg4n_career_overhaul.lua"
+    "zarg4n_positions.lua"
 )
 
 foreach ($file in $required) {
     $path = Join-Path $luaRoot $file
     if (-not (Test-Path -LiteralPath $path)) { throw "Missing source file: $file" }
+    $runtimePath = Join-Path $runtimeRoot $file
+    if (-not (Test-Path -LiteralPath $runtimePath)) { throw "Missing runtime file: $file" }
+    if ((Get-FileHash -LiteralPath $path).Hash -ne (Get-FileHash -LiteralPath $runtimePath).Hash) {
+        throw "Runtime mirror differs from source: $file"
+    }
+}
+
+$entrypoint = "zarg4n_career_overhaul.lua"
+$entrypointSource = Join-Path $luaRoot $entrypoint
+$entrypointRuntime = Join-Path $autorunRoot $entrypoint
+if (-not (Test-Path -LiteralPath $entrypointRuntime)) { throw "Missing autorun entrypoint." }
+if ((Get-FileHash -LiteralPath $entrypointSource).Hash -ne (Get-FileHash -LiteralPath $entrypointRuntime).Hash) {
+    throw "Autorun entrypoint differs from source."
 }
 
 $source = Get-ChildItem -LiteralPath $luaRoot -Filter "*.lua" -File | Get-Content -Raw

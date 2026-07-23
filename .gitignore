@@ -3,3 +3,5 @@ dist/*.fifamod
 zarg4n_career_*.json
 runtime/logs/
 *.bak
+fet-*.png
+src/legacy/base/

@@ -1,3 +1,4 @@
+local Config = require "zarg4n_config"
 local Stats = {}
 
 local function add(target, key, value)
@@ -36,7 +37,10 @@ function Stats.Aggregate(player_id, raw_stats)
         result.average_rating = 0
     end
 
-    result.minutes_confidence = math.max(0.15, math.min(1, result.appearances * 90 / 900))
+    result.sample_confidence = math.max(
+        Config.sample_confidence_floor,
+        math.min(1, result.appearances / Config.regular_appearance_sample)
+    )
     result.goal_contribution = result.goals + result.assists * 0.8
     return result
 end

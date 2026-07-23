@@ -1,4 +1,5 @@
 local Profile = {}
+local Positions = require "zarg4n_positions"
 
 local function clamp(value)
     return math.max(0, math.min(100, math.floor(value + 0.5)))
@@ -38,7 +39,7 @@ end
 
 function Profile.Create(player_row, save_uid)
     local player_id = tonumber(player_row.playerid) or 0
-    local position = tostring(player_row.position_name or "")
+    local position = Positions.Normalize(player_row.position_name)
     local bias = role_bias(position)
     local seed = tostring(save_uid) .. ":" .. tostring(player_id)
 
@@ -62,9 +63,22 @@ function Profile.Create(player_row, save_uid)
         development_profile = clamp(roll(seed .. ":profile", 20, 90)),
         base_height = tonumber(player_row.height) or 0,
         base_weight = tonumber(player_row.weight) or 0,
+        base_strength = tonumber(player_row.strength) or 0,
+        base_jumping = tonumber(player_row.jumping) or 0,
+        strength_growth_total = 0,
+        jumping_growth_total = 0,
         baseline_potential = potential,
         baseline_overall = current_ovr,
+        regular_playstyles = {},
+        plus_playstyles = {},
+        seasons_observed = 0,
+        identity_revealed = false,
     }
+end
+
+function Profile.AdvanceSeason(profile)
+    profile.seasons_observed = (tonumber(profile.seasons_observed) or 0) + 1
+    profile.identity_revealed = profile.seasons_observed >= 1
 end
 
 function Profile.Validate(profile)

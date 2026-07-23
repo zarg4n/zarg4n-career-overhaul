@@ -1,29 +1,17 @@
 # Changelog
 
-## 0.1.0-dev — 23 July 2026
+## 0.1.0-alpha — 23 July 2026
 
-### Türkçe
-
-- zarg4n Career Overhaul kaynak yapısı oluşturuldu.
-- EA FC 26 TU1.6.4 hedefi sabitlendi.
-- Live Editor runtime bootstrap eklendi.
-- Save UID tabanlı, isim alanı olmayan özel state dosyası eklendi.
-- Genç oyuncu gelişim profili ve deterministik seed sistemi eklendi.
-- Dakika, maç reytingi, gol, asist, sezon istatistikleri ve yaş katsayıları için ilk hesaplama motoru eklendi.
-- Sezon sonu potansiyel güncellemesi `-2..+3` aralığıyla sınırlandı.
-- Boy/kilo gelişimi için yaş kilitli ve düşük etkili ilk model eklendi.
-- Bruiser, Aerial, Power Shot, Relentless, Quick Step ve Intercept aday motoru eklendi.
-- Türkçe/İngilizce proje açıklaması ve kurulum belgesi eklendi.
-
-### English
-
-- Added the zarg4n Career Overhaul source layout.
-- Locked the target to EA FC 26 TU1.6.4.
-- Added the Live Editor runtime bootstrap.
-- Added a save-UID based custom state file without touching EA save tables.
-- Added deterministic youth-player development profiles.
-- Added the first development calculation using minutes, match rating, goals, assists, season stats and age.
-- Limited end-of-season potential changes to `-2..+3`.
-- Added the first age-gated, low-impact height and weight model.
-- Added candidate generation for Bruiser, Aerial, Power Shot, Relentless, Quick Step and Intercept.
-- Added bilingual project documentation and installation instructions.
+- Built a clean TU1.6.4 FIFA Editing Toolsuite project with one isolated career asset.
+- Added conservative platinum/local-lad youth generation.
+- Added save-specific deterministic prospect profiles.
+- Added season-stat development with small-sample protection and `-2..+3` potential limits.
+- Added gradual body, strength and jumping development through the early twenties.
+- Kept performance development active through the prime years while preserving veteran potential values.
+- Added regular PlayStyle and PlayStyle+ database writes with 80/85 OVR gates.
+- Added Live Editor development-manager persistence and duplicate-event protection.
+- Added automatic `lua/autorun` startup, save-switch reloads and per-player recovery checkpoints.
+- Added post-load EA save reconciliation for interrupted season-end writes.
+- Added complete FC 26 PlayStyle flag preservation and side-position normalization.
+- Added Lua 5.3 parsing, runtime contract, behaviour and package tests.
+- Confirmed that no gameplay or attribulator asset is included.

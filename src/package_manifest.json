@@ -1,12 +1,14 @@
 {
   "name": "zarg4n Career Overhaul",
   "author": "zarg4n",
+  "version": "0.1.0-alpha",
   "target": "EA SPORTS FC 26",
   "titleUpdate": "TU1.6.4",
   "distribution": {
-    "staticMod": "zarg4n Career Overhaul.fifamod",
+    "staticMod": "release\\zarg4n Career Overhaul 0.1.0-alpha.fifamod",
     "runtimeEntry": "zarg4n_career_overhaul.lua",
-    "runtimeFolder": "FC 26 Live Editor\\lua\\scripts"
+    "runtimeEntrypointFolder": "FC 26 Live Editor\\lua\\autorun",
+    "runtimeModuleFolder": "FC 26 Live Editor\\lua\\scripts"
   },
   "requiresNewCareer": true,
   "gameplayWrites": false,
