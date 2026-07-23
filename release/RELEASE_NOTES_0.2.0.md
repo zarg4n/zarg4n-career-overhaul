@@ -12,8 +12,6 @@ Her oyuncu aynı fiziksel kalıba girmez. Bazıları hızlı ve çevik kalırken
 
 **Fresh save zorunludur:** Modu kurduktan sonra yeni bir Manager Career oluştur. Eski kariyerler ve eski runtime state dosyaları desteklenmez.
 
-Bu sürüm oyun içi transfer ikna ekranı, yeni HUD, yeni basın/mesaj seçenekleri, isim havuzu, Create-a-Club seçici, yedek kulübesi sayısı değişikliği veya “pozisyonunda kal” maç puanı düzeltmesi içermez.
-
 ## English
 
 0.2.0 makes a young player’s performances a real part of his development. Appearances, match ratings, goals, assists, clean sheets and saves are evaluated by position. Development can continue into the 27–28 prime window, while limited potential changes prevent unrealistic two-season superstars.
