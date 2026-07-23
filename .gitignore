@@ -1,0 +1,5 @@
+dist/*.fifamod
+*.json.tmp
+zarg4n_career_*.json
+runtime/logs/
+*.bak
