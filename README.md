@@ -4,11 +4,10 @@ Independent career-mode work for EA SPORTS FC 26 TU1.6.4.
 
 Author / Yapımcı: **zarg4n**
 
-Repository: [github.com/zarg4n/zarg4n-career-overhaul](https://github.com/zarg4n/zarg4n-career-overhaul)
 
 ## Türkçe
 
-Bu proje KIARIKA’dan veya başka bir kariyer modundan dosya almaz. Statik paket FIFA Editing Toolsuite ile sıfırdan oluşturuldu; dinamik sistemler `zarg4n_*` isim alanındaki Live Editor Lua dosyalarında çalışır.
+Bu proje başka bir kariyer modundan dosya almaz. Statik paket FIFA Editing Toolsuite ile sıfırdan oluşturuldu; dinamik sistemler `zarg4n_*` isim alanındaki Live Editor Lua dosyalarında çalışır.
 
 ### 0.1.0-alpha içeriği
 
@@ -33,7 +32,7 @@ Bu sürüm bir **alpha çekirdek sürümdür**. Kariyer HUD’si, Türkçe/İngi
 
 ## English
 
-This project does not reuse files from KIARIKA or another career mod. The static package was created from a clean FIFA Editing Toolsuite project; dynamic systems live in uniquely named `zarg4n_*` Live Editor Lua files.
+This project does not reuse other career mod. The static package was created from a clean FIFA Editing Toolsuite project; dynamic systems live in uniquely named `zarg4n_*` Live Editor Lua files.
 
 ### Included in 0.1.0-alpha
 
@@ -62,9 +61,6 @@ This is an **alpha core release**. The career HUD, Turkish/English conversations
 - FIFA Mod Manager 2.0.4
 - FC 26 Live Editor v26.3.5
 - New career recommended and required for supported behaviour
-- KIARIKA Career Mode Overhaul must not be enabled in the same setup
-- Anth James gameplay mods are outside this mod’s data scope
-
 Original code and authored data are by zarg4n. EA SPORTS FC 26 and its game assets remain the property of Electronic Arts.
 
 Live Editor's public season-stat interface exposes appearances, not reliable per-match minutes. “Small sample” therefore means few appearances; the alpha does not pretend to detect an exact 15-minute cameo.
