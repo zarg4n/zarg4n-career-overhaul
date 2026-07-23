@@ -10,7 +10,6 @@ on:
       - "release/RELEASE_NOTES_0.2.0.md"
       - "release/zarg4n Career Overhaul 0.2.0.fifamod"
       - "release/zarg4n Career Overhaul 0.2.0 - Live Editor Runtime.zip"
-      - "release/zarg4n Career Overhaul 0.2.0 - Complete.zip"
 
 permissions:
   contents: write
@@ -30,8 +29,10 @@ jobs:
             --title "zarg4n Career Overhaul 0.2.0" \
             --notes-file "release/RELEASE_NOTES_0.2.0.md" \
             --latest
+          gh release delete-asset v0.2.0 \
+            "zarg4n Career Overhaul 0.2.0 - Complete.zip" \
+            --yes || true
           gh release upload v0.2.0 \
             "release/zarg4n Career Overhaul 0.2.0.fifamod" \
             "release/zarg4n Career Overhaul 0.2.0 - Live Editor Runtime.zip" \
-            "release/zarg4n Career Overhaul 0.2.0 - Complete.zip" \
             --clobber

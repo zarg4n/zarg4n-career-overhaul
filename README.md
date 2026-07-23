@@ -1,71 +1,77 @@
 # zarg4n Career Overhaul
 
-Independent career-mode work for EA SPORTS FC 26 TU1.6.4.
+EA SPORTS FC 26 TU1.6.4 için kariyer modu geliştirme paketi.
 
-Author / Yapımcı: **zarg4n**
-
+Yapımcı / Author: **zarg4n**
 
 ## Türkçe
 
-zarg4n Career Overhaul, genç oyuncuların sahadaki performansını gelişimlerinin gerçek bir parçası hâline getirir. Amaç, her gencin kısa sürede süperstara dönüşmesi değil; forma verdiğin ve iyi performans alan oyuncunun zamanla karşılığını almasıdır.
+### Özellikler
 
-### 0.2.0 içeriği
-
-- Daha dengeli genç oyuncu üretimi ve daha az hazır “wonderkid”
-- Forma sayısı, maç puanı, gol, asist, clean sheet ve kurtarışları dikkate alan gelişim
-- Az süre bulsa bile fark yaratan gençlere ölçülü performans ödülü
-- Sezon başına sınırlı potansiyel değişimi; iki sezonda gerçek dışı süperstarlar yok
-- 27–28 yaş prime dönemine kadar devam edebilen doğal gelişim
-- Her oyuncuyu aynı kalıba sokmayan farklı fizik ve rol profilleri
-- Genç yaşlarda ölçülü boy, kilo, güç ve sıçrama gelişimi
-- Pozisyonuna, fiziğine, performansına ve karakterine uygun PlayStyle kazanma şansı
+- Genç oyuncu üretiminde daha az hazır wonderkid
+- Forma sayısı, maç puanı, gol, asist, clean sheet ve kurtarışlara göre kontrollü gelişim
+- Az süre alıp fark yaratan gençlere ölçülü performans ödülü
+- Sezon başına sınırlı potansiyel değişimi
+- 27–28 yaş prime dönemine kadar doğal gelişim
+- Oyuncuya göre değişen fiziksel gelişim ve rol profilleri
+- Pozisyon, fizik, kişilik ve performansa uygun PlayStyle kazanımı
 - 80 ve 85 OVR eşiklerinde performansla hak edilen PlayStyle+ fırsatları
-- Kariyerler arasında geçiş yapıldığında her kariyerin kendi gelişim verisinin korunması
-- Sezon sonu gelişiminin yanlışlıkla iki kez uygulanmasına karşı koruma
-- Oyun veya Live Editor kapanırsa yarım kalan gelişim işlemlerini güvenle tamamlama
-- Türkçe ve İngilizce destek
-- Gameplay fiziğini ve CPU oynanışını değiştirmeyen kariyer odaklı yapı
-- Modun kendi özel 4K açılış görseli
-- Yeni kariyer oluşturulurken güvenli ve tek seferlik ilk kadro taraması
+- Gameplay fiziğine ve CPU oynanışına müdahale etmeyen yapı
+- Özel zarg4n açılış görseli
 
-**Yeni kariyer zorunludur.** Modu kurduktan sonra yeni bir Teknik Direktör Kariyeri oluştur. Daha önce başlatılmış kariyerler bu sürümde desteklenmez.
+### Kurulum
 
-Bu sürümün odağı genç oyuncu üretimi, performansa dayalı gelişim, fiziksel olgunlaşma, kişilik profilleri ve PlayStyle kazanımıdır. Kariyer HUD’si, yeni diyalog ve basın seçenekleri, transfer ikna ekranı, geniş isim havuzları, Create-a-Club oyuncu seçici, yedek kulübesi değişikliği ve “pozisyonunda kal” maç puanı düzeltmesi henüz bu sürümde yer almıyor.
+Gereksinimler:
+
+- EA SPORTS FC 26 PC TU1.6.4
+- FIFA Mod Manager 2.0.4
+- FC 26 Live Editor v26.3.5
+
+1. `zarg4n Career Overhaul 0.2.0.fifamod` dosyasını FIFA Mod Manager’a ekle ve uygula.
+2. `lua/autorun/zarg4n_career_overhaul.lua` dosyasını Live Editor klasöründeki `lua/autorun` klasörüne kopyala.
+3. `lua/scripts` içindeki tüm `zarg4n_*.lua` dosyalarını Live Editor klasöründeki `lua/scripts` klasörüne kopyala.
+4. Live Editor’ı aç ve oyunu başlat.
+5. Mod kurulduktan sonra yeni bir Teknik Direktör Kariyeri oluştur. Eski kariyerler desteklenmez.
+6. Çalıştığını doğrulamak için Live Editor logunda `[zarg4n] Loaded zarg4n runtime v0.2.0 for TU1.6.4` satırını kontrol et.
+
+Genç oyuncu üretimini değiştiren başka bir kariyer veritabanı moduyla birlikte kullanma. Gameplay modlarını normal sıralarında bırakabilirsin.
 
 ## English
 
-zarg4n Career Overhaul makes a young player’s performances matter to his development. The goal is not to create instant superstars, but to reward prospects who earn minutes and perform well over time.
+### Features
 
-### Included in 0.2.0
-
-- More balanced youth generation with fewer ready-made wonderkids
-- Development influenced by appearances, match ratings, goals, assists, clean sheets and saves
-- A modest reward for young players who make an impact with limited appearances
-- Limited seasonal potential changes, preventing unrealistic two-season superstars
-- Natural development that can continue into the 27–28 prime window
-- Different physical and role profiles instead of one template for every player
-- Gradual height, weight, strength and jumping development at appropriate young ages
-- A chance to earn PlayStyles suited to position, physical profile, performance and personality
+- Fewer ready-made wonderkids in youth generation
+- Controlled development based on appearances, match ratings, goals, assists, clean sheets and saves
+- A modest performance reward for young players who make an impact with limited appearances
+- Limited seasonal potential changes
+- Natural development into the 27–28 prime window
+- Individual physical growth and role profiles
+- PlayStyle progression based on position, physical profile, personality and performance
 - Performance-based PlayStyle+ opportunities at 80 and 85 OVR
-- Separate progression data for each career when switching saves
-- Protection against season-end development being applied twice
-- Safe recovery if the game or Live Editor closes during a development update
-- Turkish and English support
 - No gameplay physics or CPU gameplay changes
-- An integrated custom 4K splashscreen
-- Safe, single-pass initial squad setup when a new career is created
+- Custom zarg4n splashscreen
 
-**A fresh career is required.** Create a new Manager Career after installing the mod. Careers started before installation are not supported by this release.
+### Installation
 
-This release focuses on youth generation, performance-based development, physical growth, personality profiles and PlayStyle progression. A career HUD, new dialogue and press-conference choices, a transfer-persuasion screen, expanded name pools, a Create-a-Club player selector, bench-size changes and a fix for the “stay in position” rating penalty are not included yet.
+Requirements:
 
-## Compatibility
-
-- EA SPORTS FC 26 PC, TU1.6.4
+- EA SPORTS FC 26 PC TU1.6.4
 - FIFA Mod Manager 2.0.4
 - FC 26 Live Editor v26.3.5
-- A new Manager Career created after installation is mandatory
-- Do not combine it with another career database mod that changes youth scouting
-- Gameplay mods are outside this mod’s data scope
+
+1. Import `zarg4n Career Overhaul 0.2.0.fifamod` into FIFA Mod Manager and apply it.
+2. Copy `lua/autorun/zarg4n_career_overhaul.lua` into the Live Editor `lua/autorun` folder.
+3. Copy every `zarg4n_*.lua` file from `lua/scripts` into the Live Editor `lua/scripts` folder.
+4. Open Live Editor and launch the game.
+5. Create a new Manager Career after installation. Existing careers are not supported.
+6. Confirm `[zarg4n] Loaded zarg4n runtime v0.2.0 for TU1.6.4` in the Live Editor log.
+
+Do not combine this mod with another career database mod that changes youth generation. Gameplay mods can remain in their normal load order.
+
+## Support
+
+If you enjoy the mod and would like to buy me a coffee, you can support my work through PayPal.
+
+[![Donate with PayPal](https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=nanekwest%40gmail.com&item_name=zarg4n+Career+Overhaul&currency_code=EUR)
 
 Original code and authored data are by zarg4n. EA SPORTS FC 26 and its game assets remain the property of Electronic Arts.

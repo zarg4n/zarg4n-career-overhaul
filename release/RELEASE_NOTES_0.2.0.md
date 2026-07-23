@@ -24,4 +24,8 @@ Initial squad setup now waits until career data is fully ready and processes the
 
 **A fresh save is mandatory:** create a new Manager Career after installing the mod. Existing careers and legacy runtime state files are unsupported.
 
-This release does not include an in-game transfer-persuasion screen, a new HUD, new press/message choices, expanded name pools, a Create-a-Club selector, bench-size changes or a “stay in position” rating fix.
+## Support
+
+If you enjoy the mod and would like to buy me a coffee, you can support my work through PayPal.
+
+[![Donate with PayPal](https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=nanekwest%40gmail.com&item_name=zarg4n+Career+Overhaul&currency_code=EUR)
