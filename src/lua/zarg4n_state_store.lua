@@ -1,5 +1,6 @@
 local Json = require "imports/external/json"
 local Config = require "zarg4n_config"
+local Migrations = require "zarg4n_migrations"
 
 local StateStore = {}
 StateStore.__index = StateStore
@@ -15,13 +16,19 @@ local function state_path(save_uid)
 end
 
 local function empty_state(save_uid)
-    return {
-        schema_version = 1,
-        save_uid = save_uid,
-        initialized = false,
-        last_processed_date = 0,
-        players = {},
-    }
+    return Migrations.NewState(save_uid)
+end
+
+local function upgrade_state(state, save_uid)
+    local ok, upgraded, migration_error = pcall(
+        Migrations.Upgrade,
+        state,
+        save_uid
+    )
+    if not ok then
+        return nil, "state migration failed"
+    end
+    return upgraded, migration_error
 end
 
 local function decode_state(path, save_uid)
@@ -35,7 +42,6 @@ local function decode_state(path, save_uid)
     if not ok or type(decoded) ~= "table" or decoded.save_uid ~= save_uid then
         return nil
     end
-    decoded.players = decoded.players or {}
     return decoded
 end
 
@@ -53,8 +59,8 @@ function StateStore.new(logger)
 end
 
 function StateStore:Load(save_uid)
-    if save_uid == nil or save_uid == "" then
-        return nil, "empty save uid"
+    if not Migrations.IsValidSaveUid(save_uid) then
+        return nil, "invalid save uid"
     end
 
     local path = state_path(save_uid)
@@ -62,24 +68,35 @@ function StateStore:Load(save_uid)
     local backup_exists = file_exists(path .. ".bak")
     local state = decode_state(path, save_uid)
     if state ~= nil then
-        return state, nil
+        local upgraded, migration_error = upgrade_state(state, save_uid)
+        if upgraded ~= nil then
+            return upgraded, nil
+        end
+        self.logger:Warn("Primary career state failed validation: "
+            .. tostring(migration_error))
     end
 
     local backup = decode_state(path .. ".bak", save_uid)
     if backup ~= nil then
-        self.logger:Warn("Recovered career state from backup")
-        return backup, nil
+        local upgraded, migration_error = upgrade_state(backup, save_uid)
+        if upgraded ~= nil then
+            self.logger:Warn("Recovered career state from backup")
+            return upgraded, nil
+        end
+        self.logger:Warn("Backup career state failed validation: "
+            .. tostring(migration_error))
     end
 
     if primary_exists or backup_exists then
         return nil, "state file is corrupted and no valid backup is available"
     end
 
-    return empty_state(save_uid), nil
+    return empty_state(save_uid)
 end
 
 function StateStore:Save(state)
-    if type(state) ~= "table" or state.save_uid == nil or state.save_uid == "" then
+    if type(state) ~= "table"
+        or not Migrations.IsValidSaveUid(state.save_uid) then
         return false, "invalid state"
     end
 
