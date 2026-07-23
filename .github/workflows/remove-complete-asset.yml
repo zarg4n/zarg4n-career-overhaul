@@ -1,0 +1,25 @@
+name: Remove obsolete complete asset
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/remove-complete-asset.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  remove:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove obsolete asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete-asset v0.2.0 \
+            "zarg4n.Career.Overhaul.0.2.0.-.Complete.zip" \
+            --repo "${{ github.repository }}" \
+            --yes
